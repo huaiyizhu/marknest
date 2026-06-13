@@ -1,0 +1,17 @@
+{
+  "name": "marknest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A personal Markdown blog platform prototype.",
+  "scripts": {
+    "test": "node tests/markdown.test.js"
+  },
+  "keywords": [
+    "markdown",
+    "blog",
+    "personal-site"
+  ],
+  "license": "MIT",
+  "devDependencies": {}
+}
+

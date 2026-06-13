@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marknest</title>
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Markdown Blog Platform</p>
+        <h1>Marknest</h1>
+      </div>
+      <div class="auth-panel" id="authPanel"></div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="sidebar">
+        <nav aria-label="Primary">
+          <button class="nav-item active" data-view="reader">Reader</button>
+          <button class="nav-item" data-view="workspace">Workspace</button>
+          <button class="nav-item" data-view="stats">Stats</button>
+          <button class="nav-item admin-only" data-view="admin">Admin</button>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <section class="view active" id="readerView">
+          <div class="toolbar">
+            <div>
+              <h2>Published Articles</h2>
+              <p>Read, like, comment, and share published Markdown posts.</p>
+            </div>
+            <input id="searchInput" type="search" placeholder="Search articles" />
+          </div>
+          <div class="reader-layout">
+            <div class="article-list" id="articleList"></div>
+            <article class="article-detail" id="articleDetail"></article>
+          </div>
+        </section>
+
+        <section class="view" id="workspaceView">
+          <div class="toolbar">
+            <div>
+              <h2>Creator Workspace</h2>
+              <p>Upload Markdown, edit with preview, and publish your article.</p>
+            </div>
+            <div class="toolbar-actions">
+              <label class="file-button">
+                Upload .md
+                <input id="markdownFile" type="file" accept=".md,text/markdown,text/plain" />
+              </label>
+              <button id="newArticleButton">New</button>
+              <button id="saveDraftButton">Save Draft</button>
+              <button id="publishButton" class="primary">Publish</button>
+            </div>
+          </div>
+
+          <div class="editor-grid">
+            <form class="editor-form" id="articleForm">
+              <label>
+                Title
+                <input id="titleInput" type="text" placeholder="Article title" />
+              </label>
+              <label>
+                Summary
+                <textarea id="summaryInput" rows="3" placeholder="Short article summary"></textarea>
+              </label>
+              <div class="field-row">
+                <label>
+                  Category
+                  <input id="categoryInput" type="text" placeholder="Engineering" />
+                </label>
+                <label>
+                  Tags
+                  <input id="tagsInput" type="text" placeholder="markdown, azure, testing" />
+                </label>
+              </div>
+              <label>
+                Markdown
+                <textarea id="markdownInput" class="markdown-editor" spellcheck="false"></textarea>
+              </label>
+            </form>
+
+            <article class="preview-panel">
+              <div class="preview-meta">
+                <span id="draftStatus">Draft</span>
+                <span id="autosaveStatus">Not saved</span>
+              </div>
+              <div id="previewOutput" class="markdown-body"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="statsView">
+          <div class="toolbar">
+            <div>
+              <h2>Article Stats</h2>
+              <p>Track views, likes, comments, and shares for your content.</p>
+            </div>
+          </div>
+          <div class="stats-grid" id="statsGrid"></div>
+        </section>
+
+        <section class="view" id="adminView">
+          <div class="toolbar">
+            <div>
+              <h2>Admin Dashboard</h2>
+              <p>Review all users, content, comments, and deployment status.</p>
+            </div>
+          </div>
+          <div class="admin-grid" id="adminGrid"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="commentTemplate">
+      <div class="comment">
+        <strong></strong>
+        <p></p>
+      </div>
+    </template>
+
+    <script src="src/markdown.js"></script>
+    <script src="src/app.js"></script>
+  </body>
+</html>
+
