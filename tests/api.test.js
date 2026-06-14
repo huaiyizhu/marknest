@@ -33,6 +33,7 @@ async function run() {
   baseUrl = `http://127.0.0.1:${address.port}`;
 
   try {
+  process.env.ADMIN_EMAILS = "production@example.com";
   const health = await request("/api/health");
   assert.equal(health.status, 200);
 
@@ -60,6 +61,7 @@ async function run() {
   });
   assert.equal(easyAuthHeaders.body.authenticated, true);
   assert.equal(easyAuthHeaders.body.user.provider_user_id, "production-user");
+  assert.equal(easyAuthHeaders.body.user.role, "admin");
 
   const uploaded = await request("/api/articles/upload-md", {
     method: "POST",

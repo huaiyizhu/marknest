@@ -209,6 +209,22 @@ aad:00000000-0000-0000-0000-000000000000
 The stable provider ID should be used instead of an email address because email
 addresses can change or be reassigned.
 
+Marknest also supports a trusted-email bootstrap list:
+
+```text
+ADMIN_EMAILS
+```
+
+The production CD currently configures:
+
+```text
+ADMIN_EMAILS=huaiyiz@outlook.com
+```
+
+This email originates from Microsoft claims validated by Easy Auth. It is used
+to bootstrap the initial administrator. Stable provider IDs remain preferred
+for long-term authorization when they are available.
+
 ## Automation and CI/CD
 
 ### One-Time Authentication Bootstrap

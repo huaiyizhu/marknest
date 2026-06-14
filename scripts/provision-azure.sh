@@ -75,6 +75,9 @@ settings=(
 if [[ -n "${MARKNEST_ADMIN_IDENTITIES:-}" ]]; then
   settings+=("ADMIN_IDENTITIES=${MARKNEST_ADMIN_IDENTITIES}")
 fi
+if [[ -n "${MARKNEST_ADMIN_EMAILS:-}" ]]; then
+  settings+=("ADMIN_EMAILS=${MARKNEST_ADMIN_EMAILS}")
+fi
 if [[ -n "${MICROSOFT_AUTH_CLIENT_SECRET:-}" ]]; then
   settings+=("${MICROSOFT_AUTH_SECRET_SETTING}=${MICROSOFT_AUTH_CLIENT_SECRET}")
 fi

@@ -15,6 +15,7 @@ All deployment resources are dedicated to Marknest:
 | Plan SKU | Linux B1, one worker |
 | Web App | `marknest-608633d1-0cda` |
 | Public hostname | `blog.huaiyiz.com` |
+| Initial administrator | `huaiyiz@outlook.com` |
 | Runtime | Node.js 24 LTS |
 
 The workflow creates missing App Service resources on its first run. Later runs

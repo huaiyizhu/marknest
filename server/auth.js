@@ -9,6 +9,15 @@ function adminIdentities() {
   );
 }
 
+function adminEmails() {
+  return new Set(
+    String(process.env.ADMIN_EMAILS || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
 function decodeEasyAuthPrincipal(header) {
   if (!header) return null;
   try {
@@ -75,7 +84,8 @@ function upsertUser(db, principal) {
   if (!principal?.providerUserId) return null;
   const now = new Date().toISOString();
   const identity = `${principal.provider}:${principal.providerUserId}`;
-  const role = adminIdentities().has(identity) ? "admin" : "user";
+  const email = String(principal.email || "").toLowerCase();
+  const role = adminIdentities().has(identity) || adminEmails().has(email) ? "admin" : "user";
   const existing = db
     .prepare("SELECT * FROM users WHERE auth_provider = ? AND provider_user_id = ?")
     .get(principal.provider, principal.providerUserId);

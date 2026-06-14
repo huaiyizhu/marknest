@@ -27,6 +27,7 @@ env:
   AZURE_WEBAPP_NAME: marknest-608633d1-0cda
   AZURE_NODE_RUNTIME: NODE:24-lts
   MARKNEST_PUBLIC_BASE_URL: https://blog.huaiyiz.com
+  MARKNEST_ADMIN_EMAILS: huaiyiz@outlook.com
 
 jobs:
   build:
