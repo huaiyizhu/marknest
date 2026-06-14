@@ -4,6 +4,7 @@ const path = require("node:path");
 const QRCode = require("qrcode");
 const { articleProjection, serializeArticle } = require("./database");
 const { currentUser, requireAdmin, requireUser } = require("./auth");
+const { findLocalImages, parseFrontMatter, renderMarkdown } = require("../src/markdown");
 
 const root = path.resolve(__dirname, "..");
 
@@ -48,25 +49,17 @@ function uniqueSlug(db, title, currentId) {
 }
 
 function parseMarkdownUpload(markdown) {
-  const text = String(markdown || "");
-  const result = { attributes: {}, body: text };
-  if (text.startsWith("---")) {
-    const end = text.indexOf("\n---", 3);
-    if (end !== -1) {
-      for (const line of text.slice(3, end).trim().split("\n")) {
-        const separator = line.indexOf(":");
-        if (separator > -1) result.attributes[line.slice(0, separator).trim()] = line.slice(separator + 1).trim();
-      }
-      result.body = text.slice(end + 4).trimStart();
-    }
-  }
+  const result = parseFrontMatter(markdown);
   const heading = result.body.match(/^#\s+(.+)$/m);
+  const rawTags = result.attributes.tags || [];
   return {
     title: result.attributes.title || heading?.[1] || "Untitled",
     summary: result.attributes.summary || result.attributes.description || "",
     category: result.attributes.category || "General",
-    tags: String(result.attributes.tags || "").split(",").map((tag) => tag.trim()).filter(Boolean),
-    markdown_content: result.body
+    tags: (Array.isArray(rawTags) ? rawTags : String(rawTags).split(",")).map((tag) => String(tag).trim()).filter(Boolean),
+    markdown_content: result.body,
+    rendered_html: renderMarkdown(result.body),
+    local_images: findLocalImages(result.body)
   };
 }
 
@@ -84,6 +77,12 @@ function publicArticle(row) {
 
 function canManage(user, article) {
   return user && (user.role === "admin" || user.id === article.author_id);
+}
+
+function canRead(user, article) {
+  if (!article) return false;
+  if (canManage(user, article)) return true;
+  return article.status === "published" && ["public", "unlisted"].includes(article.visibility);
 }
 
 function audit(db, actor, targetType, targetId, action, beforeValue, afterValue) {
@@ -160,6 +159,9 @@ function createApp(db) {
         const user = requireUser(req, db);
         const body = await readJson(req);
         if (!body.title?.trim()) return json(res, 400, { error: "Title is required" });
+        if (body.visibility && !["public", "unlisted", "private"].includes(body.visibility)) {
+          return json(res, 400, { error: "Invalid visibility" });
+        }
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         db.prepare(
@@ -167,7 +169,7 @@ function createApp(db) {
            (id, author_id, title, slug, summary, markdown_content, cover_image_url, status, visibility, tags, category, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(id, user.id, body.title.trim(), uniqueSlug(db, body.title), body.summary || "", body.markdown_content || "",
-          body.cover_image_url || null, body.status || "draft", body.visibility || "public", JSON.stringify(body.tags || []),
+          body.cover_image_url || null, "draft", body.visibility || "public", JSON.stringify(body.tags || []),
           body.category || "General", now, now);
         return json(res, 201, { article: getArticle(db, id) });
       }
@@ -184,7 +186,7 @@ function createApp(db) {
            VALUES (?, ?, ?, ?, ?, ?, 'draft', 'public', ?, ?, ?, ?)`
         ).run(id, user.id, parsed.title, uniqueSlug(db, parsed.title), parsed.summary, parsed.markdown_content,
           JSON.stringify(parsed.tags), parsed.category, now, now);
-        return json(res, 201, { article: getArticle(db, id) });
+        return json(res, 201, { article: getArticle(db, id), localImages: parsed.local_images });
       }
 
       const articleMatch = pathname.match(/^\/api\/articles\/([^/]+)$/);
@@ -192,7 +194,7 @@ function createApp(db) {
         const article = getArticle(db, articleMatch[1]);
         if (!article) return json(res, 404, { error: "Article not found" });
         const user = currentUser(req, db);
-        if (article.status !== "published" && !canManage(user, article)) return json(res, 404, { error: "Article not found" });
+        if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
         db.prepare("UPDATE articles SET view_count = view_count + 1 WHERE id = ?").run(article.id);
         return json(res, 200, { article: publicArticle({ ...article, view_count: article.view_count + 1 }) });
       }
@@ -203,8 +205,12 @@ function createApp(db) {
         if (!article) return json(res, 404, { error: "Article not found" });
         if (!canManage(user, article)) return json(res, 403, { error: "Permission denied" });
         const body = await readJson(req);
+        if (body.title != null && !String(body.title).trim()) return json(res, 400, { error: "Title is required" });
+        if (body.visibility && !["public", "unlisted", "private"].includes(body.visibility)) {
+          return json(res, 400, { error: "Invalid visibility" });
+        }
         const next = {
-          title: body.title ?? article.title,
+          title: body.title?.trim() ?? article.title,
           summary: body.summary ?? article.summary,
           markdown: body.markdown_content ?? article.markdown_content,
           cover: body.cover_image_url ?? article.cover_image_url,
@@ -244,6 +250,8 @@ function createApp(db) {
       const likeMatch = pathname.match(/^\/api\/articles\/([^/]+)\/like$/);
       if (likeMatch && method === "POST") {
         const user = requireUser(req, db);
+        const article = getArticle(db, likeMatch[1]);
+        if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
         db.prepare("INSERT OR IGNORE INTO likes (article_id, user_id, created_at) VALUES (?, ?, ?)")
           .run(likeMatch[1], user.id, new Date().toISOString());
         return json(res, 200, { article: getArticle(db, likeMatch[1]) });
@@ -256,6 +264,8 @@ function createApp(db) {
 
       const commentsMatch = pathname.match(/^\/api\/articles\/([^/]+)\/comments$/);
       if (commentsMatch && method === "GET") {
+        const article = getArticle(db, commentsMatch[1]);
+        if (!canRead(currentUser(req, db), article)) return json(res, 404, { error: "Article not found" });
         const comments = db.prepare(
           `SELECT c.*, u.username AS author_name FROM comments c JOIN users u ON u.id = c.user_id
            WHERE c.article_id = ? AND c.status = 'active' ORDER BY c.created_at ASC`
@@ -264,6 +274,8 @@ function createApp(db) {
       }
       if (commentsMatch && method === "POST") {
         const user = requireUser(req, db);
+        const article = getArticle(db, commentsMatch[1]);
+        if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
         const body = await readJson(req);
         if (!body.content?.trim()) return json(res, 400, { error: "Comment content is required" });
         const id = crypto.randomUUID();
@@ -289,7 +301,7 @@ function createApp(db) {
         const user = currentUser(req, db);
         const body = await readJson(req);
         const article = getArticle(db, shareMatch[1]);
-        if (!article) return json(res, 404, { error: "Article not found" });
+        if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
         const shareUrl = `${process.env.PUBLIC_BASE_URL || "http://localhost:4173"}/#article-${article.id}`;
         db.prepare("INSERT INTO shares (id, article_id, user_id, platform, share_url, created_at) VALUES (?, ?, ?, ?, ?, ?)")
           .run(crypto.randomUUID(), article.id, user?.id || null, body.platform || "copy", shareUrl, new Date().toISOString());
@@ -299,7 +311,7 @@ function createApp(db) {
       const shareCardMatch = pathname.match(/^\/api\/articles\/([^/]+)\/share-card$/);
       if (shareCardMatch && method === "GET") {
         const article = getArticle(db, shareCardMatch[1]);
-        if (!article) return json(res, 404, { error: "Article not found" });
+        if (!canRead(currentUser(req, db), article)) return json(res, 404, { error: "Article not found" });
         const shareUrl = `${process.env.PUBLIC_BASE_URL || "http://localhost:4173"}/#article-${article.id}`;
         return json(res, 200, {
           title: article.title,
@@ -312,7 +324,7 @@ function createApp(db) {
       const qrMatch = pathname.match(/^\/api\/articles\/([^/]+)\/share-qrcode$/);
       if (qrMatch && method === "GET") {
         const article = getArticle(db, qrMatch[1]);
-        if (!article) return json(res, 404, { error: "Article not found" });
+        if (!canRead(currentUser(req, db), article)) return json(res, 404, { error: "Article not found" });
         const shareUrl = `${process.env.PUBLIC_BASE_URL || "http://localhost:4173"}/#article-${article.id}`;
         const svg = await QRCode.toString(shareUrl, { type: "svg", margin: 1, width: 320 });
         res.writeHead(200, { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "public, max-age=300" });

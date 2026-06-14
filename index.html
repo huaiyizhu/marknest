@@ -59,10 +59,13 @@
               </label>
               <button id="newArticleButton" data-i18n="newArticle">新建</button>
               <button id="saveDraftButton" data-i18n="saveDraft">保存草稿</button>
+              <button id="unpublishButton" data-i18n="unpublish">撤回</button>
+              <button id="deleteArticleButton" class="danger" data-i18n="delete">删除</button>
               <button id="publishButton" class="primary" data-i18n="publish">发布</button>
             </div>
           </div>
 
+          <div class="workspace-articles" id="workspaceArticles"></div>
           <div class="editor-grid">
             <form class="editor-form" id="articleForm">
               <label>
@@ -83,6 +86,21 @@
                   <input id="tagsInput" type="text" placeholder="markdown, azure, testing" />
                 </label>
               </div>
+              <div class="field-row">
+                <label>
+                  <span data-i18n="visibilityLabel">可见性</span>
+                  <select id="visibilityInput">
+                    <option value="public" data-i18n="visibilityPublic">公开</option>
+                    <option value="unlisted" data-i18n="visibilityUnlisted">仅链接可见</option>
+                    <option value="private" data-i18n="visibilityPrivate">私有</option>
+                  </select>
+                </label>
+                <label>
+                  <span data-i18n="coverLabel">封面图 URL</span>
+                  <input id="coverInput" type="url" placeholder="https://..." />
+                </label>
+              </div>
+              <div id="uploadWarnings" class="upload-warnings" hidden></div>
               <label>
                 <span data-i18n="markdownLabel">Markdown</span>
                 <textarea id="markdownInput" class="markdown-editor" spellcheck="false"></textarea>
@@ -129,6 +147,7 @@
     </template>
 
     <script src="src/i18n.js"></script>
+    <script src="node_modules/markdown-it/dist/markdown-it.min.js"></script>
     <script src="src/markdown.js"></script>
     <script src="src/api.js"></script>
     <script src="src/app.js"></script>

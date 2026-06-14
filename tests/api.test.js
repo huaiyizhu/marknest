@@ -74,6 +74,14 @@ async function run() {
   assert.equal(uploaded.body.article.title, "Uploaded Note");
   assert.deepEqual(uploaded.body.article.tags, ["markdown", "upload"]);
 
+  const uploadedWithLocalImage = await request("/api/articles/upload-md", {
+    method: "POST",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ markdown: "---\ntags: [one, two]\n---\n# Images\n\n![Local](./image.png)" })
+  });
+  assert.deepEqual(uploadedWithLocalImage.body.article.tags, ["one", "two"]);
+  assert.deepEqual(uploadedWithLocalImage.body.localImages, [{ alt: "Local", path: "./image.png" }]);
+
   const created = await request("/api/articles", {
     method: "POST",
     headers: headers("demo-writer", "google"),
@@ -92,12 +100,32 @@ async function run() {
   const anonymousDraft = await request(`/api/articles/${articleId}`);
   assert.equal(anonymousDraft.status, 404);
 
+  const invalidVisibility = await request(`/api/articles/${articleId}`, {
+    method: "PUT",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ visibility: "everyone" })
+  });
+  assert.equal(invalidVisibility.status, 400);
+
   const published = await request(`/api/articles/${articleId}/publish`, {
     method: "POST",
     headers: headers("demo-writer", "google")
   });
   assert.equal(published.status, 200);
   assert.equal(published.body.article.status, "published");
+
+  const madePrivate = await request(`/api/articles/${articleId}`, {
+    method: "PUT",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ visibility: "private" })
+  });
+  assert.equal(madePrivate.status, 200);
+  assert.equal((await request(`/api/articles/${articleId}`)).status, 404);
+  await request(`/api/articles/${articleId}`, {
+    method: "PUT",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ visibility: "public" })
+  });
 
   const listed = await request("/api/articles");
   assert.equal(listed.status, 200);

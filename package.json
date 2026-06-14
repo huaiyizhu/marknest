@@ -16,6 +16,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "markdown-it": "^14.1.1",
     "qrcode": "^1.5.4"
   }
 }

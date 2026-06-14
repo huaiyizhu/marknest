@@ -25,7 +25,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -310,6 +311,38 @@ body.is-admin .admin-only {
   gap: 20px;
 }
 
+.workspace-articles {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 0 14px;
+}
+
+.workspace-articles button {
+  min-width: 190px;
+  text-align: left;
+}
+
+.workspace-articles button.active {
+  border-color: var(--brand);
+  background: #edf5f1;
+}
+
+.workspace-articles small {
+  display: block;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.upload-warnings {
+  padding: 10px 12px;
+  border: 1px solid #e7bd70;
+  border-radius: 8px;
+  background: #fff8e8;
+  color: #77520b;
+  font-size: 13px;
+}
+
 .editor-form {
   display: grid;
   gap: 14px;
@@ -362,11 +395,23 @@ body.is-admin .admin-only {
 }
 
 .markdown-body pre {
+  position: relative;
   overflow: auto;
   background: #17201f;
   color: #ecf2ed;
   border-radius: 8px;
   padding: 14px;
+}
+
+.copy-code {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 6px 8px;
+  border-color: #41504e;
+  background: #263330;
+  color: white;
+  font-size: 12px;
 }
 
 .markdown-body code {
@@ -390,6 +435,53 @@ body.is-admin .admin-only {
 .markdown-body img {
   max-width: 100%;
   border-radius: 8px;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+}
+
+.markdown-body th {
+  background: #f1f5f2;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.heading-anchor {
+  margin-left: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  opacity: 0;
+}
+
+.markdown-body h1:hover .heading-anchor,
+.markdown-body h2:hover .heading-anchor,
+.markdown-body h3:hover .heading-anchor {
+  opacity: 1;
+}
+
+.article-toc {
+  margin: 18px 0;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.article-toc a {
+  display: block;
+  padding: 3px 0;
+  color: var(--brand);
+  text-decoration: none;
 }
 
 .stats-grid,
