@@ -2,22 +2,22 @@
 
 Marknest is a personal Markdown blog platform for writing, publishing, managing, and sharing technical articles.
 
-This v1 is a dependency-free static prototype that demonstrates the core product flows:
+This v1 runs as a dependency-free Node.js application with a REST API and SQLite persistence:
 
-- Third-party account sign-in simulation for Microsoft Account and Google Account
-- Admin assignment through an identity whitelist
+- Microsoft Account and Google Account through Azure App Service Easy Auth
+- Local development identities for testing without provider credentials
+- Admin assignment through an environment-backed identity whitelist
 - Markdown upload, editing, preview, draft save, and publishing
 - Article list and article detail rendering
 - Article stats for views, likes, comments, and shares
 - Share helpers for link copy, QR placeholder, WeChat Moments, and Xiaohongshu
-- Basic admin dashboard for all users, articles, comments, and deployment status
+- Server-side authorization for users, articles, comments, and the admin dashboard
+- Chinese and English UI localization
 
 ## Run Locally
 
-Open `index.html` directly in a browser, or serve the folder with any static web server.
-
 ```powershell
-python -m http.server 4173
+npm start
 ```
 
 Then open:
@@ -44,13 +44,10 @@ docs/product-requirements.md
 
 ## Admin Whitelist
 
-For this v1 prototype, admin identity matching is implemented in `src/app.js` with provider plus provider user id.
+Admin identity matching uses provider plus provider user id.
 
-Example:
-
-```js
-const ADMIN_IDENTITIES = new Set(["microsoft:demo-admin"]);
+```powershell
+$env:ADMIN_IDENTITIES="microsoft:demo-admin,google:another-admin"
 ```
 
-In production, this should move to environment-backed server configuration, for example `ADMIN_IDENTITIES=microsoft:xxx,google:yyy`.
-
+Azure deployment instructions are in `docs/azure-deployment.md`.

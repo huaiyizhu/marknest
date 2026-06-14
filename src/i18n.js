@@ -77,7 +77,17 @@
       deployment: "部署",
       deploymentStatus: "GitHub Actions 已配置。Azure 目标环境待接入。",
       audit: "审计",
-      auditStatus: "生产 API 应记录角色变更日志。"
+      auditStatus: "生产 API 应记录角色变更日志。",
+      userManagement: "用户管理",
+      articleManagement: "文章管理",
+      commentManagement: "评论管理",
+      makeAdmin: "设为管理员",
+      makeUser: "设为普通用户",
+      disable: "禁用",
+      enable: "启用",
+      unlist: "下架",
+      restore: "恢复发布",
+      delete: "删除"
     },
     "en-US": {
       appEyebrow: "Markdown Blog Platform",
@@ -148,7 +158,17 @@
       deployment: "Deployment",
       deploymentStatus: "GitHub Actions configured. Azure target pending.",
       audit: "Audit",
-      auditStatus: "Role changes should be logged by the production API."
+      auditStatus: "Role changes should be logged by the production API.",
+      userManagement: "User Management",
+      articleManagement: "Article Management",
+      commentManagement: "Comment Management",
+      makeAdmin: "Make Admin",
+      makeUser: "Make User",
+      disable: "Disable",
+      enable: "Enable",
+      unlist: "Unlist",
+      restore: "Publish",
+      delete: "Delete"
     }
   };
 
@@ -192,4 +212,3 @@
     module.exports = global.MarknestI18n;
   }
 })(typeof window !== "undefined" ? window : globalThis);
-

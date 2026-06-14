@@ -4,7 +4,10 @@
   "private": true,
   "description": "A personal Markdown blog platform prototype.",
   "scripts": {
-    "test": "node tests/markdown.test.js && node tests/i18n.test.js"
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node tests/markdown.test.js && node tests/i18n.test.js && node tests/api.test.js",
+    "check": "node --check server/index.js && node --check server/app.js && node --check server/auth.js && node --check server/database.js && node --check src/api.js && node --check src/app.js"
   },
   "keywords": [
     "markdown",
@@ -12,5 +15,7 @@
     "personal-site"
   ],
   "license": "MIT",
-  "devDependencies": {}
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
 }

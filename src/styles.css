@@ -416,6 +416,19 @@ body.is-admin .admin-only {
   margin-bottom: 0;
 }
 
+.admin-card li {
+  margin-bottom: 10px;
+}
+
+.admin-card li button {
+  margin-left: 6px;
+  padding: 7px 9px;
+}
+
+.admin-wide {
+  grid-column: span 2;
+}
+
 .empty-state {
   padding: 24px;
   color: var(--muted);
