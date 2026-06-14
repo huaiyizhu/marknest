@@ -118,11 +118,16 @@ function createApp(db) {
     try {
       if (pathname === "/api/health") return json(res, 200, { status: "ok" });
       if (pathname === "/api/auth/providers") {
+        const production = process.env.NODE_ENV === "production";
+        const providers = [];
+        if (!production || process.env.MICROSOFT_AUTH_CLIENT_ID) {
+          providers.push({ id: "microsoft", loginUrl: "/.auth/login/aad?post_login_redirect_uri=/" });
+        }
+        if (!production || process.env.GOOGLE_AUTH_CLIENT_ID) {
+          providers.push({ id: "google", loginUrl: "/.auth/login/google?post_login_redirect_uri=/" });
+        }
         return json(res, 200, {
-          providers: [
-            { id: "microsoft", loginUrl: "/.auth/login/aad?post_login_redirect_uri=/" },
-            { id: "google", loginUrl: "/.auth/login/google?post_login_redirect_uri=/" }
-          ]
+          providers
         });
       }
       if (pathname === "/api/auth/me" && method === "GET") return json(res, 200, { user: currentUser(req, db) });

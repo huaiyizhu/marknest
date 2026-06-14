@@ -36,6 +36,9 @@ async function run() {
   const health = await request("/api/health");
   assert.equal(health.status, 200);
 
+  const providers = await request("/api/auth/providers");
+  assert.deepEqual(providers.body.providers.map((provider) => provider.id), ["microsoft", "google"]);
+
   const anonymousMe = await request("/api/auth/me");
   assert.equal(anonymousMe.status, 200);
   assert.equal(anonymousMe.body.user, null);

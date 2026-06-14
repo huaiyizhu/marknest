@@ -92,6 +92,8 @@ jobs:
         shell: bash
         env:
           MARKNEST_ADMIN_IDENTITIES: ${{ secrets.MARKNEST_ADMIN_IDENTITIES }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+          GOOGLE_AUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_AUTH_CLIENT_SECRET }}
         run: bash scripts/provision-azure.sh
 
       - name: Deploy to Azure App Service

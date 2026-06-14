@@ -42,21 +42,27 @@
   function signIn(provider) {
     const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
     if (!local) {
-      location.href = provider === "microsoft"
+      location.assign(provider === "microsoft"
         ? "/.auth/login/aad?post_login_redirect_uri=/"
-        : "/.auth/login/google?post_login_redirect_uri=/";
-      return;
+        : "/.auth/login/google?post_login_redirect_uri=/");
+      return false;
     }
     const identity = provider === "microsoft"
       ? { provider: "microsoft", providerUserId: "demo-admin", name: "Ada Admin", email: "ada.admin@example.com" }
       : { provider: "google", providerUserId: "demo-writer", name: "Grace Writer", email: "grace.writer@example.com" };
     localStorage.setItem(DEV_IDENTITY_KEY, JSON.stringify(identity));
+    return true;
   }
 
   function signOut() {
+    const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    if (!local) {
+      location.assign("/.auth/logout?post_logout_redirect_uri=/");
+      return false;
+    }
     localStorage.removeItem(DEV_IDENTITY_KEY);
+    return true;
   }
 
   global.MarknestApi = { request, signIn, signOut };
 })(window);
-

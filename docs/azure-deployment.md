@@ -96,18 +96,50 @@ migrate to Azure Database for PostgreSQL or another shared database.
 
 ## User Authentication
 
-Application deployment does not automatically create Microsoft or Google OAuth
-registrations because those require provider-specific consent and credentials.
+Microsoft authentication is bootstrapped automatically. Run this once after the
+first Web App deployment:
 
-After the first deployment, open **Authentication** on the Web App:
+```powershell
+.\scripts\configure-azure-auth.ps1
+```
 
-1. Add Microsoft as an identity provider.
-2. Add Google as an identity provider.
-3. Allow unauthenticated access so public articles remain readable.
-4. Configure the provider application IDs and secrets.
+The script creates or reuses the dedicated `marknest-production-login` Entra
+application, stores its secret directly in App Service settings, and enables
+Easy Auth. Microsoft organizational accounts and personal Microsoft accounts
+are supported.
 
-Azure Easy Auth sends the authenticated identity through the
+Google requires credentials created in Google Cloud Console:
+
+1. Create or select a Google Cloud project.
+2. Configure the OAuth consent screen.
+3. Create an OAuth client with application type **Web application**.
+4. Add this authorized redirect URI:
+
+```text
+https://marknest-608633d1-0cda.azurewebsites.net/.auth/login/google/callback
+```
+
+5. Run the configuration script with the Google client ID. The script securely
+   prompts for the client secret:
+
+```powershell
+.\scripts\configure-azure-auth.ps1 -GoogleClientId "<google-client-id>"
+```
+
+Alternatively, add `GOOGLE_AUTH_CLIENT_ID` and `GOOGLE_AUTH_CLIENT_SECRET` as
+GitHub `production` environment secrets. The next CD run stores them in App
+Service and enables Google authentication.
+
+The UI reads `/api/auth/providers` and only displays providers that are fully
+configured. Azure Easy Auth sends the authenticated identity through the
 `X-MS-CLIENT-PRINCIPAL` header. Marknest does not receive provider passwords.
+
+Microsoft application secrets expire after one year. Rotate the secret without
+changing the client ID:
+
+```powershell
+.\scripts\configure-azure-auth.ps1 -RotateMicrosoftSecret
+```
 
 ## Verification
 

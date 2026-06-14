@@ -1,5 +1,6 @@
 const state = {
   currentUser: null,
+  authProviders: [],
   articles: [],
   selectedArticleId: null,
   editingArticleId: null,
@@ -59,6 +60,11 @@ async function refreshSession() {
   }
 }
 
+async function loadAuthProviders() {
+  const result = await MarknestApi.request("/api/auth/providers");
+  state.authProviders = result.providers || [];
+}
+
 async function loadArticles() {
   const result = await MarknestApi.request("/api/articles");
   state.articles = result.articles;
@@ -68,14 +74,14 @@ async function loadArticles() {
 }
 
 async function signIn(provider) {
-  MarknestApi.signIn(provider);
+  if (!MarknestApi.signIn(provider)) return;
   await refreshSession();
   await loadArticles();
   render();
 }
 
 async function signOut() {
-  MarknestApi.signOut();
+  if (!MarknestApi.signOut()) return;
   state.currentUser = null;
   render();
 }
@@ -94,10 +100,9 @@ function renderAuth() {
   const panel = $("#authPanel");
   document.body.classList.toggle("is-admin", state.currentUser?.role === "admin");
   if (!state.currentUser) {
-    panel.innerHTML = `
-      <button data-signin="microsoft">${translate("signInMicrosoft")}</button>
-      <button data-signin="google">${translate("signInGoogle")}</button>
-    `;
+    panel.innerHTML = state.authProviders.map((provider) => `
+      <button data-signin="${provider.id}">${translate(provider.id === "microsoft" ? "signInMicrosoft" : "signInGoogle")}</button>
+    `).join("");
     return;
   }
   const role = state.currentUser.role === "admin" ? translate("roleAdmin") : translate("roleUser");
@@ -372,6 +377,7 @@ function bindEvents() {
 async function initialize() {
   bindEvents();
   try {
+    await loadAuthProviders();
     await refreshSession();
     await loadArticles();
   } catch (error) {

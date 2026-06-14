@@ -8,6 +8,8 @@ set -euo pipefail
 
 AZURE_APP_SERVICE_SKU="${AZURE_APP_SERVICE_SKU:-B1}"
 AZURE_NODE_RUNTIME="${AZURE_NODE_RUNTIME:-NODE:24-lts}"
+MICROSOFT_AUTH_SECRET_SETTING="MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
+GOOGLE_AUTH_SECRET_SETTING="GOOGLE_PROVIDER_AUTHENTICATION_SECRET"
 
 if ! az group show --name "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
   az group create \
@@ -72,12 +74,70 @@ settings=(
 if [[ -n "${MARKNEST_ADMIN_IDENTITIES:-}" ]]; then
   settings+=("ADMIN_IDENTITIES=${MARKNEST_ADMIN_IDENTITIES}")
 fi
+if [[ -n "${MICROSOFT_AUTH_CLIENT_SECRET:-}" ]]; then
+  settings+=("${MICROSOFT_AUTH_SECRET_SETTING}=${MICROSOFT_AUTH_CLIENT_SECRET}")
+fi
+if [[ -n "${GOOGLE_AUTH_CLIENT_SECRET:-}" ]]; then
+  settings+=("${GOOGLE_AUTH_SECRET_SETTING}=${GOOGLE_AUTH_CLIENT_SECRET}")
+fi
+if [[ -n "${GOOGLE_AUTH_CLIENT_ID:-}" ]]; then
+  settings+=("GOOGLE_AUTH_CLIENT_ID=${GOOGLE_AUTH_CLIENT_ID}")
+fi
 
 az webapp config appsettings set \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --name "$AZURE_WEBAPP_NAME" \
   --settings "${settings[@]}" \
   --output none
+
+if [[ -z "${MICROSOFT_AUTH_CLIENT_ID:-}" ]]; then
+  MICROSOFT_AUTH_CLIENT_ID="$(az webapp config appsettings list \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --query "[?name=='MICROSOFT_AUTH_CLIENT_ID'].value | [0]" \
+    --output tsv)"
+fi
+if [[ -z "${GOOGLE_AUTH_CLIENT_ID:-}" ]]; then
+  GOOGLE_AUTH_CLIENT_ID="$(az webapp config appsettings list \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --query "[?name=='GOOGLE_AUTH_CLIENT_ID'].value | [0]" \
+    --output tsv)"
+fi
+
+if [[ -n "${MICROSOFT_AUTH_CLIENT_ID:-}" ]]; then
+  az extension add --name authV2 --yes --allow-preview true --output none
+  az webapp auth microsoft update \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --client-id "$MICROSOFT_AUTH_CLIENT_ID" \
+    --client-secret-setting-name "$MICROSOFT_AUTH_SECRET_SETTING" \
+    --issuer "https://login.microsoftonline.com/common/v2.0" \
+    --allowed-token-audiences "$MICROSOFT_AUTH_CLIENT_ID" \
+    --yes \
+    --output none
+
+  if [[ -n "${GOOGLE_AUTH_CLIENT_ID:-}" ]]; then
+    az webapp auth google update \
+      --resource-group "$AZURE_RESOURCE_GROUP" \
+      --name "$AZURE_WEBAPP_NAME" \
+      --client-id "$GOOGLE_AUTH_CLIENT_ID" \
+      --client-secret-setting-name "$GOOGLE_AUTH_SECRET_SETTING" \
+      --scopes openid profile email \
+      --yes \
+      --output none
+  fi
+
+  az webapp auth update \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --enabled true \
+    --action AllowAnonymous \
+    --enable-token-store true \
+    --require-https true \
+    --runtime-version "~1" \
+    --output none
+fi
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
