@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,19 +9,25 @@
   <body>
     <header class="app-header">
       <div>
-        <p class="eyebrow">Markdown Blog Platform</p>
+        <p class="eyebrow" data-i18n="appEyebrow">Markdown Blog 平台</p>
         <h1>Marknest</h1>
       </div>
-      <div class="auth-panel" id="authPanel"></div>
+      <div class="header-actions">
+        <label class="language-picker">
+          <span data-i18n="languageLabel">语言</span>
+          <select id="localeSelect" aria-label="Language"></select>
+        </label>
+        <div class="auth-panel" id="authPanel"></div>
+      </div>
     </header>
 
     <main class="app-shell">
       <aside class="sidebar">
         <nav aria-label="Primary">
-          <button class="nav-item active" data-view="reader">Reader</button>
-          <button class="nav-item" data-view="workspace">Workspace</button>
-          <button class="nav-item" data-view="stats">Stats</button>
-          <button class="nav-item admin-only" data-view="admin">Admin</button>
+          <button class="nav-item active" data-view="reader" data-i18n="navReader">阅读</button>
+          <button class="nav-item" data-view="workspace" data-i18n="navWorkspace">工作台</button>
+          <button class="nav-item" data-view="stats" data-i18n="navStats">数据</button>
+          <button class="nav-item admin-only" data-view="admin" data-i18n="navAdmin">管理</button>
         </nav>
       </aside>
 
@@ -29,10 +35,10 @@
         <section class="view active" id="readerView">
           <div class="toolbar">
             <div>
-              <h2>Published Articles</h2>
-              <p>Read, like, comment, and share published Markdown posts.</p>
+              <h2 data-i18n="readerTitle">已发布文章</h2>
+              <p data-i18n="readerSubtitle">阅读、点赞、评论并分享已发布的 Markdown 文章。</p>
             </div>
-            <input id="searchInput" type="search" placeholder="Search articles" />
+            <input id="searchInput" type="search" placeholder="搜索文章" data-i18n-placeholder="searchPlaceholder" />
           </div>
           <div class="reader-layout">
             <div class="article-list" id="articleList"></div>
@@ -43,50 +49,50 @@
         <section class="view" id="workspaceView">
           <div class="toolbar">
             <div>
-              <h2>Creator Workspace</h2>
-              <p>Upload Markdown, edit with preview, and publish your article.</p>
+              <h2 data-i18n="workspaceTitle">创作工作台</h2>
+              <p data-i18n="workspaceSubtitle">上传 Markdown，编辑预览，然后发布文章。</p>
             </div>
             <div class="toolbar-actions">
               <label class="file-button">
-                Upload .md
+                <span data-i18n="uploadMd">上传 .md</span>
                 <input id="markdownFile" type="file" accept=".md,text/markdown,text/plain" />
               </label>
-              <button id="newArticleButton">New</button>
-              <button id="saveDraftButton">Save Draft</button>
-              <button id="publishButton" class="primary">Publish</button>
+              <button id="newArticleButton" data-i18n="newArticle">新建</button>
+              <button id="saveDraftButton" data-i18n="saveDraft">保存草稿</button>
+              <button id="publishButton" class="primary" data-i18n="publish">发布</button>
             </div>
           </div>
 
           <div class="editor-grid">
             <form class="editor-form" id="articleForm">
               <label>
-                Title
-                <input id="titleInput" type="text" placeholder="Article title" />
+                <span data-i18n="titleLabel">标题</span>
+                <input id="titleInput" type="text" placeholder="文章标题" data-i18n-placeholder="titlePlaceholder" />
               </label>
               <label>
-                Summary
-                <textarea id="summaryInput" rows="3" placeholder="Short article summary"></textarea>
+                <span data-i18n="summaryLabel">摘要</span>
+                <textarea id="summaryInput" rows="3" placeholder="文章简短摘要" data-i18n-placeholder="summaryPlaceholder"></textarea>
               </label>
               <div class="field-row">
                 <label>
-                  Category
-                  <input id="categoryInput" type="text" placeholder="Engineering" />
+                  <span data-i18n="categoryLabel">分类</span>
+                  <input id="categoryInput" type="text" placeholder="工程实践" data-i18n-placeholder="categoryPlaceholder" />
                 </label>
                 <label>
-                  Tags
+                  <span data-i18n="tagsLabel">标签</span>
                   <input id="tagsInput" type="text" placeholder="markdown, azure, testing" />
                 </label>
               </div>
               <label>
-                Markdown
+                <span data-i18n="markdownLabel">Markdown</span>
                 <textarea id="markdownInput" class="markdown-editor" spellcheck="false"></textarea>
               </label>
             </form>
 
             <article class="preview-panel">
               <div class="preview-meta">
-                <span id="draftStatus">Draft</span>
-                <span id="autosaveStatus">Not saved</span>
+                <span id="draftStatus">草稿</span>
+                <span id="autosaveStatus">未保存</span>
               </div>
               <div id="previewOutput" class="markdown-body"></div>
             </article>
@@ -96,8 +102,8 @@
         <section class="view" id="statsView">
           <div class="toolbar">
             <div>
-              <h2>Article Stats</h2>
-              <p>Track views, likes, comments, and shares for your content.</p>
+              <h2 data-i18n="statsTitle">文章数据</h2>
+              <p data-i18n="statsSubtitle">追踪文章浏览、点赞、评论和分享表现。</p>
             </div>
           </div>
           <div class="stats-grid" id="statsGrid"></div>
@@ -106,8 +112,8 @@
         <section class="view" id="adminView">
           <div class="toolbar">
             <div>
-              <h2>Admin Dashboard</h2>
-              <p>Review all users, content, comments, and deployment status.</p>
+              <h2 data-i18n="adminTitle">管理后台</h2>
+              <p data-i18n="adminSubtitle">查看全站用户、内容、评论和部署状态。</p>
             </div>
           </div>
           <div class="admin-grid" id="adminGrid"></div>
@@ -122,8 +128,8 @@
       </div>
     </template>
 
+    <script src="src/i18n.js"></script>
     <script src="src/markdown.js"></script>
     <script src="src/app.js"></script>
   </body>
 </html>
-

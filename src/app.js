@@ -7,7 +7,8 @@ const demoUsers = [
     providerUserId: "demo-admin",
     name: "Ada Admin",
     email: "ada.admin@example.com",
-    role: "admin"
+    role: "admin",
+    preferredLocale: "zh-CN"
   },
   {
     id: "u-google",
@@ -15,7 +16,8 @@ const demoUsers = [
     providerUserId: "demo-writer",
     name: "Grace Writer",
     email: "grace.writer@example.com",
-    role: "user"
+    role: "user",
+    preferredLocale: "en-US"
   }
 ];
 
@@ -47,6 +49,7 @@ console.log(\`\${platform} renders Markdown into a blog.\`);
 const initialState = {
   currentUser: demoUsers[0],
   users: demoUsers,
+  locale: MarknestI18n.normalizeLocale(localStorage.getItem("marknest-locale") || navigator.language),
   selectedArticleId: "a-1",
   editingArticleId: null,
   articles: [
@@ -74,6 +77,7 @@ const initialState = {
 const state = loadState();
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+let t = MarknestI18n.createTranslator(state.locale);
 
 function loadState() {
   const saved = localStorage.getItem("marknest-state");
@@ -82,14 +86,24 @@ function loadState() {
   }
 
   try {
-    return { ...structuredClone(initialState), ...JSON.parse(saved) };
+    const parsed = JSON.parse(saved);
+    return {
+      ...structuredClone(initialState),
+      ...parsed,
+      locale: MarknestI18n.normalizeLocale(parsed.locale || localStorage.getItem("marknest-locale") || navigator.language)
+    };
   } catch {
     return structuredClone(initialState);
   }
 }
 
 function persist() {
+  localStorage.setItem("marknest-locale", state.locale);
   localStorage.setItem("marknest-state", JSON.stringify(state));
+}
+
+function translate(key) {
+  return t(key);
 }
 
 function identityKey(user) {
@@ -100,16 +114,43 @@ function roleFor(user) {
   return ADMIN_IDENTITIES.has(identityKey(user)) ? "admin" : "user";
 }
 
-function signIn(provider) {
-  const user =
-    provider === "microsoft"
-      ? demoUsers[0]
-      : {
-          ...demoUsers[1],
-          role: roleFor(demoUsers[1])
-        };
+function setLocale(locale) {
+  state.locale = MarknestI18n.normalizeLocale(locale);
+  t = MarknestI18n.createTranslator(state.locale);
 
-  state.currentUser = { ...user, role: roleFor(user) };
+  if (state.currentUser) {
+    state.currentUser.preferredLocale = state.locale;
+    const user = state.users.find((item) => item.id === state.currentUser.id);
+    if (user) {
+      user.preferredLocale = state.locale;
+    }
+  }
+
+  persist();
+  render();
+}
+
+function renderStaticTranslations() {
+  document.documentElement.lang = state.locale;
+
+  $$("[data-i18n]").forEach((element) => {
+    element.textContent = translate(element.dataset.i18n);
+  });
+
+  $$("[data-i18n-placeholder]").forEach((element) => {
+    element.setAttribute("placeholder", translate(element.dataset.i18nPlaceholder));
+  });
+
+  $("#localeSelect").innerHTML = MarknestI18n.SUPPORTED_LOCALES.map(
+    (locale) => `<option value="${locale}" ${locale === state.locale ? "selected" : ""}>${MarknestI18n.LOCALE_LABELS[locale]}</option>`
+  ).join("");
+}
+
+function signIn(provider) {
+  const baseUser = provider === "microsoft" ? demoUsers[0] : demoUsers[1];
+  const user = { ...baseUser, role: roleFor(baseUser) };
+
+  state.currentUser = { ...user, preferredLocale: state.locale };
   if (!state.users.some((item) => item.id === user.id)) {
     state.users.push(state.currentUser);
   }
@@ -127,7 +168,7 @@ function requireUser() {
   if (state.currentUser) {
     return true;
   }
-  alert("Please sign in with Microsoft Account or Google Account first.");
+  alert(translate("signInRequired"));
   return false;
 }
 
@@ -141,18 +182,19 @@ function renderAuth() {
 
   if (!state.currentUser) {
     panel.innerHTML = `
-      <button data-signin="microsoft">Sign in with Microsoft</button>
-      <button data-signin="google">Sign in with Google</button>
+      <button data-signin="microsoft">${translate("signInMicrosoft")}</button>
+      <button data-signin="google">${translate("signInGoogle")}</button>
     `;
     return;
   }
 
+  const roleLabel = state.currentUser.role === "admin" ? translate("roleAdmin") : translate("roleUser");
   panel.innerHTML = `
     <div class="user-chip">
       <strong>${state.currentUser.name}</strong>
-      <span>${state.currentUser.provider} · ${state.currentUser.role}</span>
+      <span>${state.currentUser.provider} - ${roleLabel}</span>
     </div>
-    <button id="signOutButton">Sign out</button>
+    <button id="signOutButton">${translate("signOut")}</button>
   `;
 }
 
@@ -180,11 +222,11 @@ function renderArticleList() {
         (article) => `
       <button class="article-row ${article.id === state.selectedArticleId ? "active" : ""}" data-select-article="${article.id}">
         <strong>${article.title}</strong>
-        <span>${article.category} · ${article.tags.join(", ")}</span>
+        <span>${article.category} - ${article.tags.join(", ")}</span>
       </button>
     `
       )
-      .join("") || '<p class="empty-state">No published articles match this search.</p>';
+      .join("") || `<p class="empty-state">${translate("noArticleMatches")}</p>`;
 
   if (!articles.some((article) => article.id === state.selectedArticleId)) {
     state.selectedArticleId = articles[0]?.id || null;
@@ -196,7 +238,7 @@ function renderArticleDetail() {
   const detail = $("#articleDetail");
 
   if (!article) {
-    detail.innerHTML = '<p class="empty-state">Select an article to read.</p>';
+    detail.innerHTML = `<p class="empty-state">${translate("selectArticle")}</p>`;
     return;
   }
 
@@ -204,25 +246,25 @@ function renderArticleDetail() {
   persist();
 
   detail.innerHTML = `
-    <div class="article-meta">${article.category} · ${article.tags.join(", ")} · ${article.publishedAt || "Draft"}</div>
+    <div class="article-meta">${article.category} - ${article.tags.join(", ")} - ${article.publishedAt || translate("draft")}</div>
     <h2>${article.title}</h2>
     <p>${article.summary}</p>
     <div class="markdown-body">${articleHtml(article)}</div>
     <div class="article-actions">
-      <button data-like="${article.id}">Like ${article.likes}</button>
-      <button data-share="${article.id}" data-platform="copy">Copy Link</button>
-      <button data-share="${article.id}" data-platform="wechat">WeChat Moments</button>
-      <button data-share="${article.id}" data-platform="xiaohongshu">Xiaohongshu</button>
-      ${canEdit(article) ? `<button data-edit="${article.id}">Edit</button>` : ""}
+      <button data-like="${article.id}">${translate("like")} ${article.likes}</button>
+      <button data-share="${article.id}" data-platform="copy">${translate("copyLink")}</button>
+      <button data-share="${article.id}" data-platform="wechat">${translate("wechat")}</button>
+      <button data-share="${article.id}" data-platform="xiaohongshu">${translate("xiaohongshu")}</button>
+      ${canEdit(article) ? `<button data-edit="${article.id}">${translate("edit")}</button>` : ""}
     </div>
     <div class="share-box" id="shareBox"></div>
     <div class="comments-box">
-      <h3>Comments</h3>
+      <h3>${translate("comments")}</h3>
       <div id="commentsList">
         ${article.comments.map((comment) => `<div class="comment"><strong>${comment.author}</strong><p>${comment.content}</p></div>`).join("")}
       </div>
       <form id="commentForm">
-        <input id="commentInput" type="text" placeholder="Add a comment" />
+        <input id="commentInput" type="text" placeholder="${translate("addComment")}" />
       </form>
     </div>
   `;
@@ -237,8 +279,8 @@ function startNewArticle() {
   $("#summaryInput").value = "";
   $("#categoryInput").value = "";
   $("#tagsInput").value = "";
-  $("#markdownInput").value = "# Untitled\n\nStart writing here.";
-  $("#draftStatus").textContent = "Draft";
+  $("#markdownInput").value = `# ${translate("untitled")}\n\n${translate("startWriting")}`;
+  $("#draftStatus").textContent = translate("draft");
   updatePreview();
 }
 
@@ -254,18 +296,18 @@ function loadArticleIntoEditor(articleId) {
   $("#categoryInput").value = article.category;
   $("#tagsInput").value = article.tags.join(", ");
   $("#markdownInput").value = article.markdown;
-  $("#draftStatus").textContent = article.status;
+  $("#draftStatus").textContent = article.status === "published" ? translate("published") : translate("draft");
   updatePreview();
 }
 
 function formArticle(status) {
-  const title = $("#titleInput").value.trim() || "Untitled";
+  const title = $("#titleInput").value.trim() || translate("untitled");
   return {
     id: state.editingArticleId || `a-${Date.now()}`,
     authorId: state.currentUser.id,
     title,
-    summary: $("#summaryInput").value.trim() || "No summary yet.",
-    category: $("#categoryInput").value.trim() || "General",
+    summary: $("#summaryInput").value.trim() || translate("noSummary"),
+    category: $("#categoryInput").value.trim() || translate("general"),
     tags: $("#tagsInput").value.split(",").map((tag) => tag.trim()).filter(Boolean),
     markdown: $("#markdownInput").value,
     status,
@@ -296,15 +338,15 @@ function saveArticle(status) {
   if (status === "published") {
     state.selectedArticleId = article.id;
   }
-  $("#draftStatus").textContent = status;
-  $("#autosaveStatus").textContent = `Saved ${new Date().toLocaleTimeString()}`;
+  $("#draftStatus").textContent = status === "published" ? translate("published") : translate("draft");
+  $("#autosaveStatus").textContent = `${translate("saved")} ${new Date().toLocaleTimeString()}`;
   persist();
   render();
 }
 
 function updatePreview() {
   $("#previewOutput").innerHTML = MarknestMarkdown.renderMarkdown($("#markdownInput").value);
-  $("#autosaveStatus").textContent = "Editing";
+  $("#autosaveStatus").textContent = translate("editing");
 }
 
 function uploadMarkdown(file) {
@@ -337,16 +379,16 @@ function shareArticle(articleId, platform) {
   const url = `${location.origin}${location.pathname}#article-${article.id}`;
   const message = `${article.title}\n${article.summary}\n${url}`;
   const platformNames = {
-    copy: "Copied share text",
-    wechat: "WeChat Moments copy",
-    xiaohongshu: "Xiaohongshu copy"
+    copy: translate("copiedShareText"),
+    wechat: translate("wechatShareText"),
+    xiaohongshu: translate("xiaohongshuShareText")
   };
 
   navigator.clipboard?.writeText(message);
   $("#shareBox").innerHTML = `
     <strong>${platformNames[platform]}</strong>
     <p>${message.replace(/\n/g, "<br />")}</p>
-    <p>QR placeholder: ${url}</p>
+    <p>${translate("qrPlaceholder")}: ${url}</p>
   `;
   persist();
   renderStats();
@@ -364,9 +406,15 @@ function renderStats() {
     },
     { views: 0, likes: 0, comments: 0, shares: 0 }
   );
+  const labels = {
+    views: translate("metricViews"),
+    likes: translate("metricLikes"),
+    comments: translate("metricComments"),
+    shares: translate("metricShares")
+  };
 
   $("#statsGrid").innerHTML = Object.entries(totals)
-    .map(([label, value]) => `<div class="stat-card"><span class="metric-label">${label}</span><span class="metric-value">${value}</span></div>`)
+    .map(([label, value]) => `<div class="stat-card"><span class="metric-label">${labels[label]}</span><span class="metric-value">${value}</span></div>`)
     .join("");
 }
 
@@ -377,25 +425,25 @@ function renderAdmin() {
   const topArticle = [...state.articles].sort((a, b) => articleStats(b) - articleStats(a))[0];
 
   $("#adminGrid").innerHTML = `
-    <div class="admin-card"><span class="metric-label">Users</span><span class="metric-value">${state.users.length}</span></div>
-    <div class="admin-card"><span class="metric-label">Published</span><span class="metric-value">${published.length}</span></div>
-    <div class="admin-card"><span class="metric-label">Drafts</span><span class="metric-value">${draft.length}</span></div>
-    <div class="admin-card"><span class="metric-label">Comments</span><span class="metric-value">${comments.length}</span></div>
+    <div class="admin-card"><span class="metric-label">${translate("users")}</span><span class="metric-value">${state.users.length}</span></div>
+    <div class="admin-card"><span class="metric-label">${translate("published")}</span><span class="metric-value">${published.length}</span></div>
+    <div class="admin-card"><span class="metric-label">${translate("drafts")}</span><span class="metric-value">${draft.length}</span></div>
+    <div class="admin-card"><span class="metric-label">${translate("comments")}</span><span class="metric-value">${comments.length}</span></div>
     <div class="admin-card">
-      <h3>Admin Identities</h3>
+      <h3>${translate("adminIdentities")}</h3>
       <ul>${Array.from(ADMIN_IDENTITIES).map((item) => `<li>${item}</li>`).join("")}</ul>
     </div>
     <div class="admin-card">
-      <h3>Top Article</h3>
-      <p>${topArticle?.title || "No articles yet"}</p>
+      <h3>${translate("topArticle")}</h3>
+      <p>${topArticle?.title || translate("noArticlesYet")}</p>
     </div>
     <div class="admin-card">
-      <h3>Deployment</h3>
-      <p>GitHub Actions configured. Azure target pending.</p>
+      <h3>${translate("deployment")}</h3>
+      <p>${translate("deploymentStatus")}</p>
     </div>
     <div class="admin-card">
-      <h3>Audit</h3>
-      <p>Role changes should be logged by the production API.</p>
+      <h3>${translate("audit")}</h3>
+      <p>${translate("auditStatus")}</p>
     </div>
   `;
 }
@@ -440,6 +488,7 @@ function bindEvents() {
   $("#publishButton").addEventListener("click", () => saveArticle("published"));
   $("#markdownInput").addEventListener("input", updatePreview);
   $("#markdownFile").addEventListener("change", (event) => uploadMarkdown(event.target.files[0]));
+  $("#localeSelect").addEventListener("change", (event) => setLocale(event.target.value));
   $("#searchInput").addEventListener("input", () => {
     renderArticleList();
     renderArticleDetail();
@@ -466,6 +515,7 @@ function bindEvents() {
 }
 
 function render() {
+  renderStaticTranslations();
   renderAuth();
   renderArticleList();
   renderArticleDetail();

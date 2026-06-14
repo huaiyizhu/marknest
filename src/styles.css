@@ -108,12 +108,28 @@ h2 {
   font-size: 22px;
 }
 
+.header-actions,
 .auth-panel {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.language-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.language-picker select {
+  width: auto;
+  min-width: 124px;
+  padding: 8px 10px;
 }
 
 .user-chip {
@@ -446,4 +462,3 @@ body.is-admin .admin-only {
     grid-template-columns: 1fr;
   }
 }
-

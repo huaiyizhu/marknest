@@ -4,7 +4,7 @@
   "private": true,
   "description": "A personal Markdown blog platform prototype.",
   "scripts": {
-    "test": "node tests/markdown.test.js"
+    "test": "node tests/markdown.test.js && node tests/i18n.test.js"
   },
   "keywords": [
     "markdown",
@@ -14,4 +14,3 @@
   "license": "MIT",
   "devDependencies": {}
 }
-
