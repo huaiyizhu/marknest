@@ -25,6 +25,23 @@ function decodeEasyAuthPrincipal(header) {
   }
 }
 
+function headerValue(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function easyAuthHeaderPrincipal(headers) {
+  const providerUserId = headerValue(headers["x-ms-client-principal-id"]);
+  if (!providerUserId) return null;
+  const provider = headerValue(headers["x-ms-client-principal-idp"]) || "aad";
+  const name = headerValue(headers["x-ms-client-principal-name"]) || "Marknest User";
+  return {
+    provider,
+    providerUserId,
+    name,
+    email: name.includes("@") ? name : null
+  };
+}
+
 function devPrincipal(req) {
   if (process.env.NODE_ENV === "production") return null;
   const id = req.headers["x-dev-user-id"];
@@ -39,7 +56,9 @@ function devPrincipal(req) {
 }
 
 function resolvePrincipal(req) {
-  return decodeEasyAuthPrincipal(req.headers["x-ms-client-principal"]) || devPrincipal(req);
+  return decodeEasyAuthPrincipal(req.headers["x-ms-client-principal"])
+    || easyAuthHeaderPrincipal(req.headers)
+    || devPrincipal(req);
 }
 
 function upsertUser(db, principal) {
@@ -97,5 +116,11 @@ function requireAdmin(req, db) {
   return user;
 }
 
-module.exports = { currentUser, requireAdmin, requireUser, resolvePrincipal };
-
+module.exports = {
+  currentUser,
+  decodeEasyAuthPrincipal,
+  easyAuthHeaderPrincipal,
+  requireAdmin,
+  requireUser,
+  resolvePrincipal
+};

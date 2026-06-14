@@ -41,13 +41,25 @@ async function run() {
 
   const anonymousMe = await request("/api/auth/me");
   assert.equal(anonymousMe.status, 200);
+  assert.equal(anonymousMe.body.authenticated, false);
   assert.equal(anonymousMe.body.user, null);
 
   const adminMe = await request("/api/auth/me", { headers: headers("demo-admin") });
+  assert.equal(adminMe.body.authenticated, true);
   assert.equal(adminMe.body.user.role, "admin");
 
   const userMe = await request("/api/auth/me", { headers: headers("demo-writer", "google") });
   assert.equal(userMe.body.user.role, "user");
+
+  const easyAuthHeaders = await request("/api/auth/me", {
+    headers: {
+      "x-ms-client-principal-id": "production-user",
+      "x-ms-client-principal-idp": "aad",
+      "x-ms-client-principal-name": "production@example.com"
+    }
+  });
+  assert.equal(easyAuthHeaders.body.authenticated, true);
+  assert.equal(easyAuthHeaders.body.user.provider_user_id, "production-user");
 
   const uploaded = await request("/api/articles/upload-md", {
     method: "POST",

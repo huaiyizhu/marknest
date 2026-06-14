@@ -15,6 +15,10 @@ function translate(key) {
   return t(key);
 }
 
+function escapeHtml(value) {
+  return MarknestMarkdown.escapeHtml(value == null ? "" : String(value));
+}
+
 function showError(error) {
   console.error(error);
   alert(error.message || "Unexpected error");
@@ -52,7 +56,7 @@ function renderStaticTranslations() {
 
 async function refreshSession() {
   const result = await MarknestApi.request("/api/auth/me");
-  state.currentUser = result.user;
+  state.currentUser = result.authenticated ? result.user : null;
   if (state.currentUser?.preferred_locale) {
     state.locale = MarknestI18n.normalizeLocale(state.currentUser.preferred_locale);
     t = MarknestI18n.createTranslator(state.locale);
@@ -107,7 +111,10 @@ function renderAuth() {
   }
   const role = state.currentUser.role === "admin" ? translate("roleAdmin") : translate("roleUser");
   panel.innerHTML = `
-    <div class="user-chip"><strong>${state.currentUser.username}</strong><span>${state.currentUser.auth_provider} - ${role}</span></div>
+    <div class="user-chip">
+      <strong>${escapeHtml(state.currentUser.username)}</strong>
+      <span>${escapeHtml(state.currentUser.email || state.currentUser.auth_provider)} - ${escapeHtml(role)}</span>
+    </div>
     <button id="signOutButton">${translate("signOut")}</button>
   `;
 }

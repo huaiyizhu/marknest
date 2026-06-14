@@ -8,7 +8,10 @@ const { currentUser, requireAdmin, requireUser } = require("./auth");
 const root = path.resolve(__dirname, "..");
 
 function json(res, status, body) {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store"
+  });
   res.end(JSON.stringify(body));
 }
 
@@ -130,7 +133,10 @@ function createApp(db) {
           providers
         });
       }
-      if (pathname === "/api/auth/me" && method === "GET") return json(res, 200, { user: currentUser(req, db) });
+      if (pathname === "/api/auth/me" && method === "GET") {
+        const user = currentUser(req, db);
+        return json(res, 200, { authenticated: Boolean(user), user });
+      }
       if (pathname === "/api/auth/logout" && method === "POST") return json(res, 200, { logoutUrl: "/.auth/logout?post_logout_redirect_uri=/" });
 
       if (pathname === "/api/users/me/locale" && method === "PUT") {

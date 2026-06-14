@@ -23,6 +23,8 @@
   async function request(path, options = {}) {
     const response = await fetch(path, {
       ...options,
+      cache: options.cache || "no-store",
+      credentials: options.credentials || "same-origin",
       headers: {
         "content-type": "application/json",
         ...authHeaders(),
