@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const QRCode = require("qrcode");
 const { articleProjection, serializeArticle } = require("./database");
-const { currentUser, requireAdmin, requireUser } = require("./auth");
+const { authenticationDiagnostics, currentUser, requireAdmin, requireUser } = require("./auth");
 
 const root = path.resolve(__dirname, "..");
 
@@ -136,6 +136,9 @@ function createApp(db) {
       if (pathname === "/api/auth/me" && method === "GET") {
         const user = currentUser(req, db);
         return json(res, 200, { authenticated: Boolean(user), user });
+      }
+      if (pathname === "/api/auth/diagnostics" && method === "GET") {
+        return json(res, 200, authenticationDiagnostics(req));
       }
       if (pathname === "/api/auth/logout" && method === "POST") return json(res, 200, { logoutUrl: "/.auth/logout?post_logout_redirect_uri=/" });
 

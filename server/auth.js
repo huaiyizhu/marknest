@@ -61,6 +61,24 @@ function resolvePrincipal(req) {
     || devPrincipal(req);
 }
 
+function authenticationDiagnostics(req) {
+  const principal = resolvePrincipal(req);
+  const cookieNames = String(req.headers.cookie || "")
+    .split(";")
+    .map((item) => item.split("=")[0].trim())
+    .filter(Boolean);
+  const identityHeaders = Object.keys(req.headers)
+    .filter((name) => name.startsWith("x-ms-client-principal"))
+    .sort();
+  return {
+    authenticated: Boolean(principal),
+    cookieNames,
+    identityHeaders,
+    principal,
+    userAgent: req.headers["user-agent"] || null
+  };
+}
+
 function upsertUser(db, principal) {
   if (!principal?.providerUserId) return null;
   const now = new Date().toISOString();
@@ -118,6 +136,7 @@ function requireAdmin(req, db) {
 
 module.exports = {
   currentUser,
+  authenticationDiagnostics,
   decodeEasyAuthPrincipal,
   easyAuthHeaderPrincipal,
   requireAdmin,
