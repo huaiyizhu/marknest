@@ -3,35 +3,118 @@ name: Deploy Azure
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
 permissions:
   contents: read
+  id-token: write
+
+concurrency:
+  group: azure-production
+  cancel-in-progress: true
+
+env:
+  AZURE_CLIENT_ID: 60d75313-6e66-4a50-8823-fc19eff7bf0b
+  AZURE_SUBSCRIPTION_ID: 608633d1-cbfb-4a74-9377-b956f3640cda
+  AZURE_TENANT_ID: 487cab16-e77e-4753-b8ba-8d0ed7c93332
+  AZURE_RESOURCE_GROUP: marknest-prod-rg
+  AZURE_LOCATION: eastasia
+  AZURE_APP_SERVICE_PLAN: marknest-prod-plan
+  AZURE_APP_SERVICE_SKU: B1
+  AZURE_WEBAPP_NAME: marknest-608633d1-0cda
+  AZURE_NODE_RUNTIME: NODE:24-lts
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: npm test
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check syntax
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build deployment package
+        shell: bash
+        run: |
+          mkdir release
+          cp package.json package-lock.json index.html release/
+          cp -R src server release/
+          cd release
+          npm ci --omit=dev
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: marknest-app
+          path: release
+          if-no-files-found: error
+          retention-days: 7
 
   deploy:
-    needs: test
+    needs: build
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      url: ${{ steps.provision.outputs.webapp-url }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout deployment scripts
+        uses: actions/checkout@v4
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: marknest-app
+          path: release
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create or update Marknest Azure resources
+        id: provision
+        shell: bash
+        env:
+          MARKNEST_ADMIN_IDENTITIES: ${{ secrets.MARKNEST_ADMIN_IDENTITIES }}
+        run: bash scripts/provision-azure.sh
 
       - name: Deploy to Azure App Service
+        id: deploy
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: .
+          app-name: ${{ steps.provision.outputs.webapp-name }}
+          package: release
+
+      - name: Verify deployment health
+        shell: bash
+        env:
+          APP_URL: ${{ steps.provision.outputs.webapp-url }}
+        run: |
+          health_url="${APP_URL%/}/api/health"
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error "$health_url"; then
+              echo
+              echo "Deployment is healthy: $health_url"
+              exit 0
+            fi
+            echo "Health check attempt $attempt failed; retrying in 10 seconds."
+            sleep 10
+          done
+          echo "Deployment health check failed: $health_url"
+          exit 1
