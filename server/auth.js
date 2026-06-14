@@ -16,7 +16,9 @@ function decodeEasyAuthPrincipal(header) {
     const claims = Object.fromEntries((principal.claims || []).map((claim) => [claim.typ, claim.val]));
     return {
       provider: principal.auth_typ || "unknown",
-      providerUserId: principal.user_id || claims.sub || claims.oid,
+      providerUserId: principal.user_id || claims.sub || claims.oid || claims[
+        "http://schemas.microsoft.com/identity/claims/objectidentifier"
+      ],
       name: principal.user_details || claims.name || claims.preferred_username || "Marknest User",
       email: claims.email || claims.preferred_username || null
     };
@@ -56,27 +58,17 @@ function devPrincipal(req) {
 }
 
 function resolvePrincipal(req) {
-  return decodeEasyAuthPrincipal(req.headers["x-ms-client-principal"])
-    || easyAuthHeaderPrincipal(req.headers)
-    || devPrincipal(req);
-}
-
-function authenticationDiagnostics(req) {
-  const principal = resolvePrincipal(req);
-  const cookieNames = String(req.headers.cookie || "")
-    .split(";")
-    .map((item) => item.split("=")[0].trim())
-    .filter(Boolean);
-  const identityHeaders = Object.keys(req.headers)
-    .filter((name) => name.startsWith("x-ms-client-principal"))
-    .sort();
-  return {
-    authenticated: Boolean(principal),
-    cookieNames,
-    identityHeaders,
-    principal,
-    userAgent: req.headers["user-agent"] || null
-  };
+  const encoded = decodeEasyAuthPrincipal(req.headers["x-ms-client-principal"]);
+  const headers = easyAuthHeaderPrincipal(req.headers);
+  if (encoded || headers) {
+    return {
+      provider: encoded?.provider || headers?.provider || "unknown",
+      providerUserId: encoded?.providerUserId || headers?.providerUserId,
+      name: encoded?.name || headers?.name || "Marknest User",
+      email: encoded?.email || headers?.email || null
+    };
+  }
+  return devPrincipal(req);
 }
 
 function upsertUser(db, principal) {
@@ -136,7 +128,6 @@ function requireAdmin(req, db) {
 
 module.exports = {
   currentUser,
-  authenticationDiagnostics,
   decodeEasyAuthPrincipal,
   easyAuthHeaderPrincipal,
   requireAdmin,
