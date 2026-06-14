@@ -105,8 +105,8 @@ first Web App deployment:
 
 The script creates or reuses the dedicated `marknest-production-login` Entra
 application, stores its secret directly in App Service settings, and enables
-Easy Auth. Microsoft organizational accounts and personal Microsoft accounts
-are supported.
+the ID token flow required by Easy Auth. Microsoft organizational accounts and
+personal Microsoft accounts are supported.
 
 Google requires credentials created in Google Cloud Console:
 

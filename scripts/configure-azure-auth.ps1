@@ -52,6 +52,11 @@ else {
     --output none
 }
 
+az ad app update `
+  --id $microsoftClientId `
+  --enable-id-token-issuance true `
+  --output none
+
 $settings = az webapp config appsettings list `
   --resource-group $ResourceGroup `
   --name $WebAppName `
