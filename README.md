@@ -51,3 +51,6 @@ $env:ADMIN_IDENTITIES="microsoft:demo-admin,google:another-admin"
 ```
 
 Azure deployment instructions are in `docs/azure-deployment.md`.
+
+Microsoft Account login architecture and Easy Auth implementation details are
+in `docs/microsoft-authentication.md`.
