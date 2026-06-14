@@ -14,6 +14,7 @@ All deployment resources are dedicated to Marknest:
 | App Service plan | `marknest-prod-plan` |
 | Plan SKU | Linux B1, one worker |
 | Web App | `marknest-608633d1-0cda` |
+| Public hostname | `blog.huaiyiz.com` |
 | Runtime | Node.js 24 LTS |
 
 The workflow creates missing App Service resources on its first run. Later runs
@@ -152,7 +153,7 @@ https://marknest-608633d1-0cda.azurewebsites.net
 Health endpoint:
 
 ```text
-https://marknest-608633d1-0cda.azurewebsites.net/api/health
+https://blog.huaiyiz.com/api/health
 ```
 
 Expected response:

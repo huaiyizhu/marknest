@@ -63,10 +63,11 @@ az webapp config set \
   --output none
 
 app_url="https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
+public_base_url="${MARKNEST_PUBLIC_BASE_URL:-$app_url}"
 settings=(
   "NODE_ENV=production"
   "DATABASE_FILE=/home/data/marknest.db"
-  "PUBLIC_BASE_URL=${app_url}"
+  "PUBLIC_BASE_URL=${public_base_url}"
   "SCM_DO_BUILD_DURING_DEPLOYMENT=false"
   "ENABLE_ORYX_BUILD=false"
 )

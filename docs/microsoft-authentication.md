@@ -55,11 +55,15 @@ resource group.
 | Supported accounts | Organizational and personal Microsoft accounts |
 | ID token issuance | Enabled |
 
-The registered redirect URI is:
+The registered redirect URIs are:
 
 ```text
+https://blog.huaiyiz.com/.auth/login/aad/callback
 https://marknest-608633d1-0cda.azurewebsites.net/.auth/login/aad/callback
 ```
+
+`blog.huaiyiz.com` is the primary public hostname. The default App Service
+hostname remains registered as a fallback for direct operational access.
 
 The application secret is not committed to this repository. It is stored in the
 Web App application setting:
@@ -109,6 +113,16 @@ Production login starts in `src/api.js`:
 After login, Microsoft redirects to the Easy Auth callback. Easy Auth validates
 the response, creates the `AppServiceAuthSession` cookie, and redirects the
 browser back to `/`.
+
+Easy Auth builds the callback URI from the hostname used by the browser. A user
+who starts at `https://blog.huaiyiz.com` therefore uses:
+
+```text
+https://blog.huaiyiz.com/.auth/login/aad/callback
+```
+
+Every hostname used for login must have an exact callback URI registered in the
+Entra application.
 
 On page initialization, `src/app.js` requests:
 
@@ -287,5 +301,5 @@ Expected Marknest response shape:
   `requireAdmin()`.
 - Use provider IDs, not email addresses, for authorization decisions.
 - Rotate the Microsoft secret before it expires.
-- If the Web App hostname changes, update the Entra redirect URI before
-  switching traffic.
+- If the Web App hostname changes, register the new exact callback URI in the
+  Entra application before switching traffic.

@@ -3,6 +3,7 @@ param(
   [string]$TenantId = "487cab16-e77e-4753-b8ba-8d0ed7c93332",
   [string]$ResourceGroup = "marknest-prod-rg",
   [string]$WebAppName = "marknest-608633d1-0cda",
+  [string]$PublicBaseUrl = "https://blog.huaiyiz.com",
   [string]$MicrosoftApplicationName = "marknest-production-login",
   [string]$GoogleClientId,
   [SecureString]$GoogleClientSecret,
@@ -30,7 +31,9 @@ if ($account.subscription -ne $SubscriptionId -or $account.tenant -ne $TenantId)
 az webapp show --resource-group $ResourceGroup --name $WebAppName --output none
 $appUrl = "https://${WebAppName}.azurewebsites.net"
 $microsoftRedirect = "${appUrl}/.auth/login/aad/callback"
+$publicMicrosoftRedirect = "${PublicBaseUrl}/.auth/login/aad/callback"
 $googleRedirect = "${appUrl}/.auth/login/google/callback"
+$publicGoogleRedirect = "${PublicBaseUrl}/.auth/login/google/callback"
 
 $microsoftClientId = az ad app list `
   --display-name $MicrosoftApplicationName `
@@ -41,14 +44,14 @@ if (-not $microsoftClientId) {
   $microsoftClientId = az ad app create `
     --display-name $MicrosoftApplicationName `
     --sign-in-audience AzureADandPersonalMicrosoftAccount `
-    --web-redirect-uris $microsoftRedirect `
+    --web-redirect-uris $microsoftRedirect $publicMicrosoftRedirect `
     --query appId `
     --output tsv
 }
 else {
   az ad app update `
     --id $microsoftClientId `
-    --web-redirect-uris $microsoftRedirect `
+    --web-redirect-uris $microsoftRedirect $publicMicrosoftRedirect `
     --output none
 }
 
@@ -146,11 +149,14 @@ Write-Host ""
 Write-Host "Microsoft authentication configured."
 Write-Host "Microsoft client ID: $microsoftClientId"
 Write-Host "Microsoft callback: $microsoftRedirect"
+Write-Host "Microsoft custom-domain callback: $publicMicrosoftRedirect"
 if ($GoogleClientId) {
   Write-Host "Google authentication configured."
   Write-Host "Google callback: $googleRedirect"
+  Write-Host "Google custom-domain callback: $publicGoogleRedirect"
 }
 else {
   Write-Host "Google authentication is waiting for a Google OAuth client ID and secret."
   Write-Host "Required Google callback: $googleRedirect"
+  Write-Host "Required Google custom-domain callback: $publicGoogleRedirect"
 }

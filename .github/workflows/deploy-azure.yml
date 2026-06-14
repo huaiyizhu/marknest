@@ -26,6 +26,7 @@ env:
   AZURE_APP_SERVICE_SKU: B1
   AZURE_WEBAPP_NAME: marknest-608633d1-0cda
   AZURE_NODE_RUNTIME: NODE:24-lts
+  MARKNEST_PUBLIC_BASE_URL: https://blog.huaiyiz.com
 
 jobs:
   build:
