@@ -103,6 +103,13 @@ jobs:
           app-name: ${{ steps.provision.outputs.webapp-name }}
           package: release
 
+      - name: Restart Azure App Service
+        run: >
+          az webapp restart
+          --resource-group "$AZURE_RESOURCE_GROUP"
+          --name "${{ steps.provision.outputs.webapp-name }}"
+          --output none
+
       - name: Verify deployment health
         shell: bash
         env:
