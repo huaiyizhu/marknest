@@ -28,6 +28,8 @@ env:
   AZURE_NODE_RUNTIME: NODE:24-lts
   MARKNEST_PUBLIC_BASE_URL: https://blog.huaiyiz.com
   MARKNEST_ADMIN_EMAILS: huaiyiz@outlook.com
+  MARKNEST_FRONTDOOR_PROFILE: marknest-frontdoor
+  MARKNEST_FRONTDOOR_ENDPOINT: marknest-global-608633
 
 jobs:
   build:
