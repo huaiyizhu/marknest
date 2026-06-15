@@ -226,6 +226,10 @@ async function run() {
   });
   assert.equal(revalidatedScript.status, 304);
 
+  const cachedIndex = await fetch(`${baseUrl}/`);
+  assert.equal(cachedIndex.status, 200);
+  assert.match(cachedIndex.headers.get("cache-control"), /max-age=300/);
+
   const liked = await request(`/api/articles/${articleId}/like`, {
     method: "POST",
     headers: headers("demo-admin")

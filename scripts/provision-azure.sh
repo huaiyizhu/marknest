@@ -238,6 +238,31 @@ if [[ -n "$MARKNEST_FRONTDOOR_PROFILE" && -n "$MARKNEST_FRONTDOOR_ENDPOINT" ]]; 
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --profile-name "$MARKNEST_FRONTDOOR_PROFILE" \
     --endpoint-name "$MARKNEST_FRONTDOOR_ENDPOINT" \
+    --route-name static-root \
+    --output none 2>/dev/null; then
+    az afd route create \
+      --resource-group "$AZURE_RESOURCE_GROUP" \
+      --profile-name "$MARKNEST_FRONTDOOR_PROFILE" \
+      --endpoint-name "$MARKNEST_FRONTDOOR_ENDPOINT" \
+      --route-name static-root \
+      --origin-group "$MARKNEST_FRONTDOOR_ORIGIN_GROUP" \
+      --patterns-to-match "/" \
+      --supported-protocols Http Https \
+      --https-redirect Enabled \
+      --forwarding-protocol HttpsOnly \
+      --link-to-default-domain Enabled \
+      --enable-caching true \
+      --query-string-caching-behavior IgnoreQueryString \
+      --enable-compression true \
+      --content-types-to-compress text/html text/css text/javascript application/javascript application/json image/svg+xml text/plain \
+      --enabled-state Enabled \
+      --output none
+  fi
+
+  if ! az afd route show \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --profile-name "$MARKNEST_FRONTDOOR_PROFILE" \
+    --endpoint-name "$MARKNEST_FRONTDOOR_ENDPOINT" \
     --route-name static-assets \
     --output none 2>/dev/null; then
     az afd route create \
@@ -271,7 +296,7 @@ if [[ -n "$MARKNEST_FRONTDOOR_PROFILE" && -n "$MARKNEST_FRONTDOOR_ENDPOINT" ]]; 
       --endpoint-name "$MARKNEST_FRONTDOOR_ENDPOINT" \
       --route-name application \
       --origin-group "$MARKNEST_FRONTDOOR_ORIGIN_GROUP" \
-      --patterns-to-match "/*" \
+      --patterns-to-match "/api/*" "/.auth/*" \
       --supported-protocols Http Https \
       --https-redirect Enabled \
       --forwarding-protocol HttpsOnly \

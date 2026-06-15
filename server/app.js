@@ -188,7 +188,7 @@ function staticFile(req, res, pathname, uploadsDir) {
   const extension = path.extname(filename).toLowerCase();
   const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".md": "text/markdown" };
   const cacheControl = extension === ".html"
-    ? "no-cache"
+    ? "public, max-age=300, must-revalidate"
     : "public, max-age=3600, must-revalidate";
   const stats = fs.statSync(filename);
   const etag = `"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`;
