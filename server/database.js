@@ -67,6 +67,20 @@ function createDatabase(filename = ":memory:") {
       share_url TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS assets (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL REFERENCES users(id),
+      article_id TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+      original_filename TEXT NOT NULL,
+      source_path TEXT,
+      storage_key TEXT NOT NULL UNIQUE,
+      public_url TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       actor_id TEXT NOT NULL,
@@ -102,4 +116,3 @@ function serializeArticle(row) {
 }
 
 module.exports = { articleProjection, createDatabase, serializeArticle };
-

@@ -7,144 +7,188 @@
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
-    <header class="app-header">
-      <div>
-        <p class="eyebrow" data-i18n="appEyebrow">Markdown Blog 平台</p>
-        <h1>Marknest</h1>
-      </div>
-      <div class="header-actions">
-        <label class="language-picker">
-          <span data-i18n="languageLabel">语言</span>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Marknest">
+        <span class="brand-mark">M</span>
+        <strong>Marknest</strong>
+      </a>
+      <label class="global-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+        <input id="searchInput" type="search" data-i18n-placeholder="globalSearchPlaceholder" placeholder="搜索文章与草稿" />
+        <kbd>⌘ K</kbd>
+      </label>
+      <div class="topbar-actions">
+        <button class="icon-button quick-create" id="quickCreateButton" aria-label="New article">+</button>
+        <button class="icon-button" aria-label="Notifications">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+        </button>
+        <label class="locale-control">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
           <select id="localeSelect" aria-label="Language"></select>
         </label>
         <div class="auth-panel" id="authPanel"></div>
       </div>
     </header>
 
-    <main class="app-shell">
-      <aside class="sidebar">
+    <main class="app-frame">
+      <aside class="icon-rail">
         <nav aria-label="Primary">
-          <button class="nav-item active" data-view="reader" data-i18n="navReader">阅读</button>
-          <button class="nav-item" data-view="workspace" data-i18n="navWorkspace">工作台</button>
-          <button class="nav-item" data-view="stats" data-i18n="navStats">数据</button>
-          <button class="nav-item admin-only" data-view="admin" data-i18n="navAdmin">管理</button>
+          <button class="nav-item active" data-view="reader" data-label-key="navReader" aria-label="Reader">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v17H6.5A2.5 2.5 0 0 0 4 22V5.5ZM20 5.5A2.5 2.5 0 0 0 17.5 3H13v17h4.5A2.5 2.5 0 0 1 20 22V5.5Z"/></svg>
+          </button>
+          <button class="nav-item" data-view="workspace" data-label-key="navWorkspace" aria-label="Workspace">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4ZM13.5 6.5l4 4"/></svg>
+          </button>
+          <button class="nav-item" data-view="stats" data-label-key="navStats" aria-label="Stats">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10m7 10V4m7 16v-7"/></svg>
+          </button>
+          <button class="nav-item admin-only" data-view="admin" data-label-key="navAdmin" aria-label="Admin">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1 1.5 2.6-2.8 2.8-2.6-1.5-.1.1a8 8 0 0 1-3 .9H9.5a8 8 0 0 1-3-.9l-.1-.1-2.6 1.5L1 17.7l1.5-2.6-.1-.1a8 8 0 0 1-.9-3V9a8 8 0 0 1 .9-3l.1-.1L1 3.3 3.8.5 6.4 2l.1-.1a8 8 0 0 1 3-.9h3a8 8 0 0 1 3 .9l.1.1L18.2.5 21 3.3l-1.5 2.6.1.1a8 8 0 0 1 .9 3v3a8 8 0 0 1-1.1 3Z"/></svg>
+          </button>
         </nav>
       </aside>
 
-      <section class="content">
+      <section class="app-content">
         <section class="view active" id="readerView">
-          <div class="toolbar">
-            <div>
-              <h2 data-i18n="readerTitle">已发布文章</h2>
-              <p data-i18n="readerSubtitle">阅读、点赞、评论并分享已发布的 Markdown 文章。</p>
+          <aside class="document-sidebar">
+            <div class="sidebar-heading">
+              <div>
+                <span class="section-kicker" data-i18n="library">内容库</span>
+                <h2 data-i18n="readerTitle">已发布文章</h2>
+              </div>
             </div>
-            <input id="searchInput" type="search" placeholder="搜索文章" data-i18n-placeholder="searchPlaceholder" />
-          </div>
-          <div class="reader-layout">
+            <div class="library-tabs">
+              <button class="active" data-i18n="recent">最近</button>
+              <button data-i18n="drafts">草稿</button>
+              <button data-i18n="published">已发布</button>
+            </div>
             <div class="article-list" id="articleList"></div>
-            <article class="article-detail" id="articleDetail"></article>
-          </div>
+          </aside>
+          <article class="article-detail social-article" id="articleDetail"></article>
         </section>
 
-        <section class="view" id="workspaceView">
-          <div class="toolbar">
-            <div>
-              <h2 data-i18n="workspaceTitle">创作工作台</h2>
-              <p data-i18n="workspaceSubtitle">上传 Markdown，编辑预览，然后发布文章。</p>
+        <section class="view workspace-view" id="workspaceView">
+          <aside class="document-sidebar workspace-library">
+            <button class="primary create-button" id="newArticleButton">
+              <span>＋</span><span data-i18n="newArticle">新建文章</span>
+            </button>
+            <div class="library-tabs">
+              <button class="active" data-i18n="recent">最近</button>
+              <button data-i18n="drafts">草稿</button>
+              <button data-i18n="published">已发布</button>
             </div>
-            <div class="toolbar-actions">
-              <label class="file-button">
-                <span data-i18n="uploadMd">上传 .md</span>
-                <input id="markdownFile" type="file" accept=".md,text/markdown,text/plain" />
-              </label>
-              <button id="newArticleButton" data-i18n="newArticle">新建</button>
-              <button id="saveDraftButton" data-i18n="saveDraft">保存草稿</button>
-              <button id="unpublishButton" data-i18n="unpublish">撤回</button>
-              <button id="deleteArticleButton" class="danger" data-i18n="delete">删除</button>
-              <button id="publishButton" class="primary" data-i18n="publish">发布</button>
-            </div>
-          </div>
+            <div class="workspace-articles" id="workspaceArticles"></div>
+          </aside>
 
-          <div class="workspace-articles" id="workspaceArticles"></div>
-          <div class="editor-grid">
-            <form class="editor-form" id="articleForm">
-              <label>
-                <span data-i18n="titleLabel">标题</span>
-                <input id="titleInput" type="text" placeholder="文章标题" data-i18n-placeholder="titlePlaceholder" />
-              </label>
-              <label>
-                <span data-i18n="summaryLabel">摘要</span>
-                <textarea id="summaryInput" rows="3" placeholder="文章简短摘要" data-i18n-placeholder="summaryPlaceholder"></textarea>
-              </label>
-              <div class="field-row">
-                <label>
-                  <span data-i18n="categoryLabel">分类</span>
-                  <input id="categoryInput" type="text" placeholder="工程实践" data-i18n-placeholder="categoryPlaceholder" />
-                </label>
-                <label>
-                  <span data-i18n="tagsLabel">标签</span>
-                  <input id="tagsInput" type="text" placeholder="markdown, azure, testing" />
-                </label>
+          <section class="editor-workspace">
+            <div class="document-commandbar">
+              <div class="document-heading">
+                <input id="titleInput" class="document-title" type="text" data-i18n-placeholder="titlePlaceholder" placeholder="文章标题" />
+                <div class="document-status">
+                  <span class="status-pill" id="draftStatus">草稿</span>
+                  <span id="autosaveStatus">未保存</span>
+                </div>
               </div>
-              <div class="field-row">
-                <label>
-                  <span data-i18n="visibilityLabel">可见性</span>
+              <div class="publish-actions">
+                <label class="button file-button">
+                  <span data-i18n="uploadMd">上传 .md</span>
+                  <input id="markdownFile" type="file" accept=".md,text/markdown,text/plain" />
+                </label>
+                <button id="saveDraftButton" data-i18n="saveDraft">保存草稿</button>
+                <button id="publishButton" class="primary" data-i18n="publish">发布</button>
+                <button class="icon-button more-button" id="moreActionsButton" aria-label="More actions">•••</button>
+                <div class="more-menu" id="moreActionsMenu" hidden>
+                  <button id="unpublishButton" data-i18n="unpublish">撤回发布</button>
+                  <button id="deleteArticleButton" class="danger" data-i18n="delete">删除文章</button>
+                </div>
+              </div>
+            </div>
+
+            <form class="editor-form" id="articleForm">
+              <textarea id="summaryInput" class="summary-input" rows="2" data-i18n-placeholder="summaryPlaceholder" placeholder="添加一段简洁的文章摘要"></textarea>
+              <div class="metadata-bar">
+                <label><span data-i18n="categoryLabel">分类</span><input id="categoryInput" type="text" data-i18n-placeholder="categoryPlaceholder" placeholder="工程实践" /></label>
+                <label><span data-i18n="tagsLabel">标签</span><input id="tagsInput" type="text" placeholder="markdown, writing" /></label>
+                <label><span data-i18n="visibilityLabel">可见性</span>
                   <select id="visibilityInput">
                     <option value="public" data-i18n="visibilityPublic">公开</option>
                     <option value="unlisted" data-i18n="visibilityUnlisted">仅链接可见</option>
                     <option value="private" data-i18n="visibilityPrivate">私有</option>
                   </select>
                 </label>
-                <label>
-                  <span data-i18n="coverLabel">封面图 URL</span>
-                  <input id="coverInput" type="url" placeholder="https://..." />
-                </label>
+                <label class="cover-field"><span data-i18n="coverLabel">封面图</span><input id="coverInput" type="url" placeholder="https://..." /></label>
               </div>
-              <div id="uploadWarnings" class="upload-warnings" hidden></div>
-              <label>
-                <span data-i18n="markdownLabel">Markdown</span>
+              <div class="format-toolbar" aria-label="Markdown formatting">
+                <button type="button" data-insert="## " title="Heading">H</button>
+                <button type="button" data-wrap="**" title="Bold"><strong>B</strong></button>
+                <button type="button" data-wrap="_" title="Italic"><em>I</em></button>
+                <button type="button" data-insert="[链接](https://)" title="Link">↗</button>
+                <button type="button" id="insertImageButton" title="Image">▧</button>
+                <button type="button" data-insert="| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |\n" title="Table">▦</button>
+                <button type="button" data-insert="```js\n\n```\n" title="Code">&lt;/&gt;</button>
+                <button type="button" data-insert="- [ ] " title="Task">☑</button>
+              </div>
+              <label class="markdown-field">
+                <span class="sr-only" data-i18n="markdownLabel">Markdown</span>
                 <textarea id="markdownInput" class="markdown-editor" spellcheck="false"></textarea>
               </label>
+              <footer class="editor-footer">
+                <span id="wordCount">0 字</span>
+                <span id="readingTime">约 1 分钟阅读</span>
+                <span class="saved-indicator">● <span data-i18n="autosaveEnabled">自动保存已开启</span></span>
+              </footer>
             </form>
+          </section>
 
-            <article class="preview-panel">
-              <div class="preview-meta">
-                <span id="draftStatus">草稿</span>
-                <span id="autosaveStatus">未保存</span>
-              </div>
+          <aside class="preview-column">
+            <div class="preview-header">
+              <strong data-i18n="livePreview">实时预览</strong>
+              <span data-i18n="readerMode">读者视图</span>
+            </div>
+            <article class="preview-panel social-article">
+              <header class="preview-author">
+                <span class="avatar">M</span>
+                <div><strong id="previewAuthor" data-i18n="previewCreator">Marknest 创作者</strong><span data-i18n="justNow">刚刚</span></div>
+                <button class="icon-button" aria-label="More">•••</button>
+              </header>
+              <h1 id="previewTitle"></h1>
+              <p class="preview-summary" id="previewSummary"></p>
+              <div class="preview-tags" id="previewTags"></div>
               <div id="previewOutput" class="markdown-body"></div>
+              <footer class="engagement-bar">
+                <span>◉ <span data-i18n="metricViews">浏览</span></span>
+                <span>♡ <span data-i18n="like">点赞</span></span>
+                <span>□ <span data-i18n="comments">评论</span></span>
+                <span>↗ <span data-i18n="metricShares">分享</span></span>
+              </footer>
             </article>
-          </div>
+          </aside>
+
+          <section class="asset-drawer" id="assetDrawer" hidden>
+            <div>
+              <h3 data-i18n="imageAssets">文章图片</h3>
+              <p data-i18n="imageAssetsHelp">上传 Markdown 引用的本地图片，系统会自动替换引用路径。</p>
+            </div>
+            <label class="button primary file-button">
+              <span data-i18n="uploadImages">上传图片</span>
+              <input id="imageFiles" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple />
+            </label>
+            <div id="uploadWarnings" class="upload-warnings" hidden></div>
+            <div id="assetList" class="asset-list"></div>
+          </section>
         </section>
 
-        <section class="view" id="statsView">
-          <div class="toolbar">
-            <div>
-              <h2 data-i18n="statsTitle">文章数据</h2>
-              <p data-i18n="statsSubtitle">追踪文章浏览、点赞、评论和分享表现。</p>
-            </div>
-          </div>
+        <section class="view simple-view" id="statsView">
+          <div class="page-heading"><span class="section-kicker" data-i18n="analytics">Analytics</span><h2 data-i18n="statsTitle">文章数据</h2><p data-i18n="statsSubtitle">追踪内容表现和读者互动。</p></div>
           <div class="stats-grid" id="statsGrid"></div>
         </section>
 
-        <section class="view" id="adminView">
-          <div class="toolbar">
-            <div>
-              <h2 data-i18n="adminTitle">管理后台</h2>
-              <p data-i18n="adminSubtitle">查看全站用户、内容、评论和部署状态。</p>
-            </div>
-          </div>
+        <section class="view simple-view" id="adminView">
+          <div class="page-heading"><span class="section-kicker" data-i18n="administration">Administration</span><h2 data-i18n="adminTitle">管理后台</h2><p data-i18n="adminSubtitle">管理用户、内容与评论。</p></div>
           <div class="admin-grid" id="adminGrid"></div>
         </section>
       </section>
     </main>
-
-    <template id="commentTemplate">
-      <div class="comment">
-        <strong></strong>
-        <p></p>
-      </div>
-    </template>
 
     <script src="src/i18n.js"></script>
     <script src="node_modules/markdown-it/dist/markdown-it.min.js"></script>

@@ -1,10 +1,14 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const http = require("node:http");
+const os = require("node:os");
+const path = require("node:path");
 const { createApp } = require("../server/app");
 const { createDatabase } = require("../server/database");
 
 const db = createDatabase(":memory:");
-const server = http.createServer(createApp(db));
+const uploadsDir = fs.mkdtempSync(path.join(os.tmpdir(), "marknest-test-"));
+const server = http.createServer(createApp(db, { uploadsDir }));
 
 function headers(userId, provider = "microsoft") {
   return {
@@ -96,6 +100,73 @@ async function run() {
   assert.equal(created.status, 201);
   assert.equal(created.body.article.status, "draft");
   const articleId = created.body.article.id;
+
+  const imageArticle = await request("/api/articles", {
+    method: "POST",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({
+      title: "Image Article",
+      markdown_content: "# Image Article\n\n![Diagram](./images/diagram.png)"
+    })
+  });
+  const imageArticleId = imageArticle.body.article.id;
+  const blockedPublish = await request(`/api/articles/${imageArticleId}/publish`, {
+    method: "POST",
+    headers: headers("demo-writer", "google")
+  });
+  assert.equal(blockedPublish.status, 409);
+  assert.deepEqual(blockedPublish.body.unresolvedImages, [{ alt: "Diagram", path: "./images/diagram.png" }]);
+
+  const onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+  const uploadedImage = await request("/api/assets/images", {
+    method: "POST",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({
+      article_id: imageArticleId,
+      filename: "diagram.png",
+      source_path: "./images/diagram.png",
+      mime_type: "image/png",
+      data_base64: onePixelPng
+    })
+  });
+  assert.equal(uploadedImage.status, 201);
+  assert.match(uploadedImage.body.article.markdown_content, /\/uploads\//);
+  assert.deepEqual(uploadedImage.body.unresolvedImages, []);
+
+  const assets = await request(`/api/articles/${imageArticleId}/assets`, {
+    headers: headers("demo-writer", "google")
+  });
+  assert.equal(assets.body.assets.length, 1);
+  const asset = assets.body.assets[0];
+  const imageResponse = await fetch(`${baseUrl}${asset.public_url}`);
+  assert.equal(imageResponse.status, 200);
+  assert.equal(imageResponse.headers.get("content-type"), "image/png");
+
+  const publishedImageArticle = await request(`/api/articles/${imageArticleId}/publish`, {
+    method: "POST",
+    headers: headers("demo-writer", "google")
+  });
+  assert.equal(publishedImageArticle.status, 200);
+
+  const publishedAssetDelete = await request(`/api/assets/${asset.id}`, {
+    method: "DELETE",
+    headers: headers("demo-writer", "google")
+  });
+  assert.equal(publishedAssetDelete.status, 409);
+
+  await request(`/api/articles/${imageArticleId}/unpublish`, {
+    method: "POST",
+    headers: headers("demo-writer", "google")
+  });
+  const deletedAsset = await request(`/api/assets/${asset.id}`, {
+    method: "DELETE",
+    headers: headers("demo-writer", "google")
+  });
+  assert.equal(deletedAsset.status, 204);
+  const restoredImageArticle = await request(`/api/articles/${imageArticleId}`, {
+    headers: headers("demo-writer", "google")
+  });
+  assert.match(restoredImageArticle.body.article.markdown_content, /\.\/images\/diagram\.png/);
 
   const anonymousDraft = await request(`/api/articles/${articleId}`);
   assert.equal(anonymousDraft.status, 404);
@@ -202,6 +273,8 @@ async function run() {
   } finally {
     await new Promise((resolve) => server.close(resolve));
     db.close();
+    const resolvedUploadsDir = path.resolve(uploadsDir);
+    if (resolvedUploadsDir.startsWith(path.resolve(os.tmpdir()))) fs.rmSync(resolvedUploadsDir, { recursive: true, force: true });
   }
 }
 

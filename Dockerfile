@@ -10,8 +10,9 @@ COPY server ./server
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV DATABASE_FILE=/home/data/marknest.db
+ENV UPLOADS_DIR=/home/data/uploads
 
-RUN mkdir -p /home/data
+RUN mkdir -p /home/data/uploads
 EXPOSE 8080
 
 CMD ["node", "server/index.js"]

@@ -7,6 +7,12 @@ const { currentUser, requireAdmin, requireUser } = require("./auth");
 const { findLocalImages, parseFrontMatter, renderMarkdown } = require("../src/markdown");
 
 const root = path.resolve(__dirname, "..");
+const imageTypes = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/webp": ".webp",
+  "image/gif": ".gif"
+};
 
 function json(res, status, body) {
   res.writeHead(status, {
@@ -27,6 +33,44 @@ async function readJson(req) {
     error.status = 400;
     throw error;
   }
+}
+
+function detectImageType(buffer) {
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+    return "image/png";
+  }
+  if (buffer.length >= 3 && buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255) return "image/jpeg";
+  if (buffer.length >= 6 && ["GIF87a", "GIF89a"].includes(buffer.subarray(0, 6).toString("ascii"))) return "image/gif";
+  if (buffer.length >= 12
+    && buffer.subarray(0, 4).toString("ascii") === "RIFF"
+    && buffer.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  return null;
+}
+
+function normalizedImagePath(value) {
+  let decoded = String(value || "");
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    // Keep malformed user input as-is so it can remain unresolved.
+  }
+  return decoded
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .toLowerCase();
+}
+
+function replaceImageReferences(markdown, sourcePath, publicUrl) {
+  const expected = normalizedImagePath(sourcePath);
+  const expectedName = path.posix.basename(expected);
+  return String(markdown || "").replace(
+    /!\[([^\]]*)\]\(([^)\s]+)(\s+["'][^"']*["'])?\)/g,
+    (match, alt, imagePath, title = "") => {
+      const candidate = normalizedImagePath(imagePath);
+      if (candidate !== expected && path.posix.basename(candidate) !== expectedName) return match;
+      return `![${alt}](${publicUrl}${title})`;
+    }
+  );
 }
 
 function slugify(value) {
@@ -101,7 +145,20 @@ function audit(db, actor, targetType, targetId, action, beforeValue, afterValue)
   );
 }
 
-function staticFile(req, res, pathname) {
+function staticFile(req, res, pathname, uploadsDir) {
+  if (pathname.startsWith("/uploads/")) {
+    const relative = pathname.slice("/uploads/".length);
+    const filename = path.resolve(uploadsDir, relative);
+    const safeRoot = `${path.resolve(uploadsDir)}${path.sep}`;
+    if (!filename.startsWith(safeRoot) || !fs.existsSync(filename) || fs.statSync(filename).isDirectory()) return false;
+    const uploadTypes = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" };
+    res.writeHead(200, {
+      "content-type": uploadTypes[path.extname(filename).toLowerCase()] || "application/octet-stream",
+      "cache-control": "public, max-age=31536000, immutable"
+    });
+    fs.createReadStream(filename).pipe(res);
+    return true;
+  }
   const requested = pathname === "/" ? "index.html" : pathname.slice(1);
   const filename = path.resolve(root, requested);
   if (!filename.startsWith(root) || !fs.existsSync(filename) || fs.statSync(filename).isDirectory()) return false;
@@ -111,7 +168,9 @@ function staticFile(req, res, pathname) {
   return true;
 }
 
-function createApp(db) {
+function createApp(db, options = {}) {
+  const uploadsDir = path.resolve(options.uploadsDir || process.env.UPLOADS_DIR || path.join(root, "data", "uploads"));
+  fs.mkdirSync(uploadsDir, { recursive: true });
   return async function app(req, res) {
     const url = new URL(req.url, "http://localhost");
     const pathname = url.pathname;
@@ -189,6 +248,77 @@ function createApp(db) {
         return json(res, 201, { article: getArticle(db, id), localImages: parsed.local_images });
       }
 
+      if (pathname === "/api/assets/images" && method === "POST") {
+        const user = requireUser(req, db);
+        const body = await readJson(req);
+        const article = getArticle(db, body.article_id);
+        if (!article) return json(res, 404, { error: "Article not found" });
+        if (!canManage(user, article)) return json(res, 403, { error: "Permission denied" });
+        if (!body.filename || !body.data_base64) return json(res, 400, { error: "Image filename and data are required" });
+
+        const buffer = Buffer.from(String(body.data_base64), "base64");
+        const maxBytes = Number(process.env.MAX_IMAGE_BYTES || 8 * 1024 * 1024);
+        if (!buffer.length || buffer.length > maxBytes) return json(res, 400, { error: "Image is empty or exceeds the size limit" });
+        const detectedType = detectImageType(buffer);
+        if (!detectedType || !imageTypes[detectedType]) return json(res, 400, { error: "Unsupported or invalid image file" });
+        if (body.mime_type && body.mime_type !== detectedType) return json(res, 400, { error: "Image MIME type does not match file content" });
+
+        const id = crypto.randomUUID();
+        const storageKey = `${article.id}/${id}${imageTypes[detectedType]}`;
+        const filename = path.resolve(uploadsDir, storageKey);
+        fs.mkdirSync(path.dirname(filename), { recursive: true });
+        fs.writeFileSync(filename, buffer, { flag: "wx" });
+        const publicUrl = `/uploads/${storageKey.replace(/\\/g, "/")}`;
+        const sourcePath = body.source_path || body.filename;
+        const now = new Date().toISOString();
+        db.prepare(
+          `INSERT INTO assets
+           (id, owner_id, article_id, original_filename, source_path, storage_key, public_url, mime_type, file_size, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+        ).run(id, user.id, article.id, path.basename(body.filename), sourcePath, storageKey, publicUrl,
+          detectedType, buffer.length, now, now);
+
+        const nextMarkdown = replaceImageReferences(article.markdown_content, sourcePath, publicUrl);
+        db.prepare("UPDATE articles SET markdown_content = ?, updated_at = ? WHERE id = ?")
+          .run(nextMarkdown, now, article.id);
+        return json(res, 201, {
+          asset: db.prepare("SELECT * FROM assets WHERE id = ?").get(id),
+          article: getArticle(db, article.id),
+          unresolvedImages: findLocalImages(nextMarkdown)
+        });
+      }
+
+      const articleAssetsMatch = pathname.match(/^\/api\/articles\/([^/]+)\/assets$/);
+      if (articleAssetsMatch && method === "GET") {
+        const user = requireUser(req, db);
+        const article = getArticle(db, articleAssetsMatch[1]);
+        if (!article) return json(res, 404, { error: "Article not found" });
+        if (!canManage(user, article)) return json(res, 403, { error: "Permission denied" });
+        return json(res, 200, {
+          assets: db.prepare("SELECT * FROM assets WHERE article_id = ? AND status = 'active' ORDER BY created_at DESC")
+            .all(article.id),
+          unresolvedImages: findLocalImages(article.markdown_content)
+        });
+      }
+
+      const assetMatch = pathname.match(/^\/api\/assets\/([^/]+)$/);
+      if (assetMatch && method === "DELETE") {
+        const user = requireUser(req, db);
+        const asset = db.prepare("SELECT * FROM assets WHERE id = ?").get(assetMatch[1]);
+        if (!asset) return json(res, 404, { error: "Asset not found" });
+        const article = getArticle(db, asset.article_id);
+        if (!canManage(user, article)) return json(res, 403, { error: "Permission denied" });
+        if (article.status === "published") return json(res, 409, { error: "Unpublish the article before deleting an image" });
+        const restoredMarkdown = String(article.markdown_content).split(asset.public_url).join(asset.source_path || asset.original_filename);
+        db.prepare("UPDATE articles SET markdown_content = ?, updated_at = ? WHERE id = ?")
+          .run(restoredMarkdown, new Date().toISOString(), article.id);
+        db.prepare("UPDATE assets SET status = 'deleted', updated_at = ? WHERE id = ?")
+          .run(new Date().toISOString(), asset.id);
+        const filename = path.resolve(uploadsDir, asset.storage_key);
+        if (filename.startsWith(`${uploadsDir}${path.sep}`) && fs.existsSync(filename)) fs.unlinkSync(filename);
+        return json(res, 204, null);
+      }
+
       const articleMatch = pathname.match(/^\/api\/articles\/([^/]+)$/);
       if (articleMatch && method === "GET") {
         const article = getArticle(db, articleMatch[1]);
@@ -242,6 +372,10 @@ function createApp(db) {
         if (!article) return json(res, 404, { error: "Article not found" });
         if (!canManage(user, article)) return json(res, 403, { error: "Permission denied" });
         const publishing = publishMatch[2] === "publish";
+        const unresolvedImages = publishing ? findLocalImages(article.markdown_content) : [];
+        if (unresolvedImages.length) {
+          return json(res, 409, { error: "Resolve local image references before publishing", unresolvedImages });
+        }
         db.prepare("UPDATE articles SET status = ?, published_at = ?, updated_at = ? WHERE id = ?")
           .run(publishing ? "published" : "draft", publishing ? new Date().toISOString() : null, new Date().toISOString(), article.id);
         return json(res, 200, { article: getArticle(db, article.id) });
@@ -379,11 +513,18 @@ function createApp(db) {
       }
 
       if (pathname.startsWith("/api/")) return json(res, 404, { error: "API route not found" });
-      if (!staticFile(req, res, pathname)) json(res, 404, { error: "Not found" });
+      if (!staticFile(req, res, pathname, uploadsDir)) json(res, 404, { error: "Not found" });
     } catch (error) {
       json(res, error.status || 500, { error: error.message || "Internal server error" });
     }
   };
 }
 
-module.exports = { createApp, parseMarkdownUpload, readJson, slugify };
+module.exports = {
+  createApp,
+  detectImageType,
+  parseMarkdownUpload,
+  readJson,
+  replaceImageReferences,
+  slugify
+};

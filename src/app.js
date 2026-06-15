@@ -3,6 +3,8 @@ const state = {
   authProviders: [],
   articles: [],
   myArticles: [],
+  assets: [],
+  unresolvedImages: [],
   selectedArticleId: null,
   editingArticleId: null,
   locale: MarknestI18n.normalizeLocale(localStorage.getItem("marknest-locale") || navigator.language)
@@ -22,9 +24,31 @@ function escapeHtml(value) {
   return MarknestMarkdown.escapeHtml(value == null ? "" : String(value));
 }
 
+function initials(value) {
+  return String(value || "M").trim().slice(0, 1).toUpperCase();
+}
+
 function showError(error) {
   console.error(error);
   alert(error.message || "Unexpected error");
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 async function setLocale(locale) {
@@ -32,16 +56,12 @@ async function setLocale(locale) {
   t = MarknestI18n.createTranslator(state.locale);
   localStorage.setItem("marknest-locale", state.locale);
   if (state.currentUser) {
-    try {
-      await MarknestApi.request("/api/users/me/locale", {
-        method: "PUT",
-        body: JSON.stringify({ locale: state.locale })
-      });
-    } catch (error) {
-      showError(error);
-    }
+    await MarknestApi.request("/api/users/me/locale", {
+      method: "PUT",
+      body: JSON.stringify({ locale: state.locale })
+    });
   }
-  render();
+  await render();
 }
 
 function renderStaticTranslations() {
@@ -51,6 +71,9 @@ function renderStaticTranslations() {
   });
   $$("[data-i18n-placeholder]").forEach((element) => {
     element.placeholder = translate(element.dataset.i18nPlaceholder);
+  });
+  $$("[data-label-key]").forEach((element) => {
+    element.setAttribute("aria-label", translate(element.dataset.labelKey));
   });
   $("#localeSelect").innerHTML = MarknestI18n.SUPPORTED_LOCALES.map(
     (locale) => `<option value="${locale}" ${locale === state.locale ? "selected" : ""}>${MarknestI18n.LOCALE_LABELS[locale]}</option>`
@@ -68,13 +91,11 @@ async function refreshSession() {
 }
 
 async function loadAuthProviders() {
-  const result = await MarknestApi.request("/api/auth/providers");
-  state.authProviders = result.providers || [];
+  state.authProviders = (await MarknestApi.request("/api/auth/providers")).providers || [];
 }
 
 async function loadArticles() {
-  const result = await MarknestApi.request("/api/articles");
-  state.articles = result.articles;
+  state.articles = (await MarknestApi.request("/api/articles")).articles || [];
   if (!state.articles.some((article) => article.id === state.selectedArticleId)) {
     state.selectedArticleId = state.articles[0]?.id || null;
   }
@@ -82,23 +103,37 @@ async function loadArticles() {
 
 async function loadMyArticles() {
   state.myArticles = state.currentUser
-    ? (await MarknestApi.request("/api/articles?mine=true")).articles
+    ? (await MarknestApi.request("/api/articles?mine=true")).articles || []
     : [];
+}
+
+async function loadArticleAssets() {
+  if (!state.currentUser || !state.editingArticleId) {
+    state.assets = [];
+    state.unresolvedImages = MarknestMarkdown.findLocalImages($("#markdownInput").value);
+    renderAssetDrawer();
+    return;
+  }
+  const result = await MarknestApi.request(`/api/articles/${state.editingArticleId}/assets`);
+  state.assets = result.assets || [];
+  state.unresolvedImages = result.unresolvedImages || [];
+  renderAssetDrawer();
 }
 
 async function signIn(provider) {
   if (!MarknestApi.signIn(provider)) return;
   await refreshSession();
-  await loadArticles();
-  await loadMyArticles();
-  render();
+  await Promise.all([loadArticles(), loadMyArticles()]);
+  await render();
 }
 
 async function signOut() {
   if (!MarknestApi.signOut()) return;
   state.currentUser = null;
   state.myArticles = [];
-  render();
+  state.assets = [];
+  state.unresolvedImages = [];
+  await render();
 }
 
 function requireUser() {
@@ -120,32 +155,37 @@ function renderAuth() {
     `).join("");
     return;
   }
-  const role = state.currentUser.role === "admin" ? translate("roleAdmin") : translate("roleUser");
   panel.innerHTML = `
-    <div class="user-chip">
-      <strong>${escapeHtml(state.currentUser.username)}</strong>
-      <span>${escapeHtml(state.currentUser.email || state.currentUser.auth_provider)} - ${escapeHtml(role)}</span>
+    <div class="user-chip" title="${escapeHtml(state.currentUser.username)}">
+      <strong>${escapeHtml(initials(state.currentUser.username))}</strong>
+      <span>${escapeHtml(state.currentUser.email || state.currentUser.auth_provider)}</span>
     </div>
     <button id="signOutButton">${translate("signOut")}</button>
   `;
 }
 
-function renderArticleList() {
+function filteredArticles(source) {
   const query = $("#searchInput").value.trim().toLowerCase();
-  const articles = state.articles.filter((article) =>
+  if (!query) return source;
+  return source.filter((article) =>
     [article.title, article.summary, article.category, article.tags.join(" ")].join(" ").toLowerCase().includes(query)
   );
+}
+
+function renderArticleList() {
+  const articles = filteredArticles(state.articles);
   $("#articleList").innerHTML = articles.map((article) => `
     <button class="article-row ${article.id === state.selectedArticleId ? "active" : ""}" data-select-article="${article.id}">
-      <strong>${escapeHtml(article.title)}</strong><span>${escapeHtml(article.category)} - ${escapeHtml(article.tags.join(", "))}</span>
+      <strong>${escapeHtml(article.title)}</strong>
+      <span>${escapeHtml(article.category)} · ${article.view_count} ${translate("metricViews")}</span>
     </button>
   `).join("") || `<p class="empty-state">${translate("noArticleMatches")}</p>`;
 }
 
 async function selectArticle(id) {
-  const result = await MarknestApi.request(`/api/articles/${id}`);
-  const index = state.articles.findIndex((article) => article.id === id);
-  if (index >= 0) state.articles[index] = result.article;
+  const article = (await MarknestApi.request(`/api/articles/${id}`)).article;
+  const index = state.articles.findIndex((item) => item.id === id);
+  if (index >= 0) state.articles[index] = article;
   state.selectedArticleId = id;
   await renderArticleDetail();
   renderArticleList();
@@ -160,7 +200,7 @@ async function renderArticleDetail() {
   }
   let comments = [];
   try {
-    comments = (await MarknestApi.request(`/api/articles/${article.id}/comments`)).comments;
+    comments = (await MarknestApi.request(`/api/articles/${article.id}/comments`)).comments || [];
   } catch (error) {
     console.error(error);
   }
@@ -168,19 +208,32 @@ async function renderArticleDetail() {
   const toc = headings.length > 1 ? `<nav class="article-toc"><strong>${translate("tableOfContents")}</strong>${headings.map((heading) =>
     `<a href="#${heading.id}" style="padding-left:${(heading.level - 1) * 12}px">${escapeHtml(heading.text)}</a>`).join("")}</nav>` : "";
   detail.innerHTML = `
-    <div class="article-meta">${escapeHtml(article.author_name)} - ${escapeHtml(article.category)} - ${escapeHtml(article.tags.join(", "))} - ${escapeHtml(article.published_at || translate("draft"))}</div>
-    <h2>${escapeHtml(article.title)}</h2><p>${escapeHtml(article.summary)}</p>
+    <header class="preview-author">
+      <span class="avatar">${escapeHtml(initials(article.author_name))}</span>
+      <div><strong>${escapeHtml(article.author_name)}</strong><span>${escapeHtml(article.published_at || translate("draft"))}</span></div>
+      <button class="icon-button" aria-label="More">•••</button>
+    </header>
+    <h2>${escapeHtml(article.title)}</h2>
+    <p>${escapeHtml(article.summary)}</p>
+    <div class="preview-tags">${article.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>
     ${toc}
     <div class="markdown-body">${MarknestMarkdown.renderMarkdown(article.markdown_content)}</div>
+    <div class="engagement-bar">
+      <span>◉ ${article.view_count} ${translate("metricViews")}</span>
+      <span>♡ ${article.like_count} ${translate("metricLikes")}</span>
+      <span>□ ${article.comment_count} ${translate("metricComments")}</span>
+      <span>↗ ${article.share_count} ${translate("metricShares")}</span>
+    </div>
     <div class="article-actions">
-      <button data-like="${article.id}">${translate("like")} ${article.like_count}</button>
+      <button data-like="${article.id}">${translate("like")}</button>
       <button data-share="${article.id}" data-platform="copy">${translate("copyLink")}</button>
       <button data-share="${article.id}" data-platform="wechat">${translate("wechat")}</button>
       <button data-share="${article.id}" data-platform="xiaohongshu">${translate("xiaohongshu")}</button>
       ${canEdit(article) ? `<button data-edit="${article.id}">${translate("edit")}</button>` : ""}
     </div>
     <div class="share-box" id="shareBox"></div>
-    <div class="comments-box"><h3>${translate("comments")}</h3>
+    <div class="comments-box">
+      <h3>${translate("comments")}</h3>
       ${comments.map((comment) => `<div class="comment"><strong>${escapeHtml(comment.author_name)}</strong><p>${escapeHtml(comment.content)}</p>${state.currentUser && (state.currentUser.role === "admin" || state.currentUser.id === comment.user_id) ? `<button class="danger" data-delete-comment="${comment.id}">${translate("delete")}</button>` : ""}</div>`).join("")}
       <form id="commentForm"><input id="commentInput" placeholder="${translate("addComment")}" /></form>
     </div>
@@ -189,16 +242,20 @@ async function renderArticleDetail() {
 
 function resetEditor() {
   state.editingArticleId = null;
+  state.assets = [];
+  state.unresolvedImages = [];
   $("#titleInput").value = "";
   $("#summaryInput").value = "";
   $("#categoryInput").value = "";
   $("#tagsInput").value = "";
   $("#visibilityInput").value = "public";
   $("#coverInput").value = "";
-  $("#uploadWarnings").hidden = true;
   $("#markdownInput").value = `# ${translate("untitled")}\n\n${translate("startWriting")}`;
   $("#draftStatus").textContent = translate("draft");
+  $("#autosaveStatus").textContent = translate("notSaved");
   updatePreview(false);
+  renderWorkspaceArticles();
+  renderAssetDrawer();
 }
 
 async function editArticle(id) {
@@ -214,6 +271,8 @@ async function editArticle(id) {
   $("#draftStatus").textContent = article.status === "published" ? translate("published") : translate("draft");
   updatePreview(false);
   showView("workspace");
+  await loadArticleAssets();
+  renderWorkspaceArticles();
 }
 
 function articlePayload() {
@@ -229,26 +288,37 @@ function articlePayload() {
 }
 
 async function saveArticle(status, options = {}) {
-  if (!requireUser()) return;
-  if (isSaving) return;
+  if (!requireUser() || isSaving) return null;
   isSaving = true;
-  let article;
+  $("#autosaveStatus").textContent = translate("saving");
   try {
+    let article;
     if (state.editingArticleId) {
       article = (await MarknestApi.request(`/api/articles/${state.editingArticleId}`, {
-        method: "PUT", body: JSON.stringify(articlePayload())
+        method: "PUT",
+        body: JSON.stringify(articlePayload())
       })).article;
     } else {
       article = (await MarknestApi.request("/api/articles", {
-        method: "POST", body: JSON.stringify({ ...articlePayload(), status: "draft" })
+        method: "POST",
+        body: JSON.stringify(articlePayload())
       })).article;
       state.editingArticleId = article.id;
     }
     if (status === "published" && article.status !== "published") {
-      article = (await MarknestApi.request(`/api/articles/${article.id}/publish`, { method: "POST" })).article;
+      try {
+        article = (await MarknestApi.request(`/api/articles/${article.id}/publish`, { method: "POST" })).article;
+      } catch (error) {
+        if (error.status === 409) {
+          state.unresolvedImages = MarknestMarkdown.findLocalImages($("#markdownInput").value);
+          renderAssetDrawer(true);
+          error.message = translate("publishBlockedImages");
+        }
+        throw error;
+      }
     }
     $("#draftStatus").textContent = article.status === "published" ? translate("published") : translate("draft");
-    $("#autosaveStatus").textContent = `${translate("saved")} ${new Date().toLocaleTimeString()}`;
+    $("#autosaveStatus").textContent = `${translate("saved")} · ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     await Promise.all([loadArticles(), loadMyArticles()]);
     if (status === "published") state.selectedArticleId = article.id;
     if (!options.silent) await render();
@@ -260,11 +330,22 @@ async function saveArticle(status, options = {}) {
 }
 
 function updatePreview(scheduleAutosave = true) {
-  $("#previewOutput").innerHTML = MarknestMarkdown.renderMarkdown($("#markdownInput").value);
+  const payload = articlePayload();
+  $("#previewTitle").textContent = payload.title;
+  $("#previewSummary").textContent = payload.summary;
+  $("#previewTags").innerHTML = payload.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
+  $("#previewOutput").innerHTML = MarknestMarkdown.renderMarkdown(payload.markdown_content);
+  const words = payload.markdown_content.replace(/[#>*_`\-[\]|]/g, " ").trim().split(/\s+/).filter(Boolean).length;
+  $("#wordCount").textContent = `${words.toLocaleString()} ${state.locale === "zh-CN" ? "字" : "words"}`;
+  $("#readingTime").textContent = state.locale === "zh-CN"
+    ? `约 ${Math.max(1, Math.ceil(words / 300))} 分钟阅读`
+    : `About ${Math.max(1, Math.ceil(words / 220))} min read`;
+  state.unresolvedImages = MarknestMarkdown.findLocalImages(payload.markdown_content);
+  renderAssetDrawer();
   $("#autosaveStatus").textContent = translate("editing");
   if (!scheduleAutosave) return;
   clearTimeout(autosaveTimer);
-  localStorage.setItem("marknest-local-draft", JSON.stringify(articlePayload()));
+  localStorage.setItem("marknest-local-draft", JSON.stringify(payload));
   if (state.currentUser) {
     autosaveTimer = setTimeout(() => {
       saveArticle("draft", { silent: true }).catch((error) => {
@@ -275,41 +356,86 @@ function updatePreview(scheduleAutosave = true) {
   }
 }
 
-function uploadMarkdown(file) {
+async function uploadMarkdown(file) {
   if (!requireUser() || !file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const parsed = MarknestMarkdown.parseFrontMatter(reader.result);
-    const titleMatch = parsed.body.match(/^#\s+(.+)$/m);
-    $("#titleInput").value = parsed.attributes.title || titleMatch?.[1] || file.name.replace(/\.md$/i, "");
-    $("#summaryInput").value = parsed.attributes.summary || parsed.attributes.description || "";
-    $("#categoryInput").value = parsed.attributes.category || "";
-    $("#tagsInput").value = Array.isArray(parsed.attributes.tags) ? parsed.attributes.tags.join(", ") : parsed.attributes.tags || "";
-    $("#markdownInput").value = parsed.body;
-    state.editingArticleId = null;
-    const localImages = MarknestMarkdown.findLocalImages(parsed.body);
-    const warnings = $("#uploadWarnings");
-    warnings.hidden = localImages.length === 0;
-    warnings.textContent = localImages.length
-      ? `${translate("localImagesWarning")} ${localImages.map((image) => image.path).join(", ")}`
-      : "";
-    updatePreview();
-  };
-  reader.readAsText(file);
+  const markdown = await readFileAsText(file);
+  const result = await MarknestApi.request("/api/articles/upload-md", {
+    method: "POST",
+    body: JSON.stringify({ markdown })
+  });
+  await Promise.all([loadArticles(), loadMyArticles()]);
+  await editArticle(result.article.id);
+  state.unresolvedImages = result.localImages || [];
+  renderAssetDrawer(state.unresolvedImages.length > 0);
+}
+
+function normalizedPath(value) {
+  return String(value || "").replace(/\\/g, "/").replace(/^\.?\//, "").toLowerCase();
+}
+
+function matchingSourcePath(file) {
+  const relative = normalizedPath(file.webkitRelativePath || file.name);
+  const filename = relative.split("/").pop();
+  return state.unresolvedImages.find((image) => {
+    const candidate = normalizedPath(image.path);
+    return candidate === relative || candidate.split("/").pop() === filename;
+  })?.path || file.webkitRelativePath || file.name;
+}
+
+async function uploadImageFiles(files) {
+  if (!requireUser() || !files.length) return;
+  if (!state.editingArticleId) {
+    const article = await saveArticle("draft", { silent: true });
+    if (!article) throw new Error(translate("imageUploadFailed"));
+  }
+  for (const file of files) {
+    const sourcePath = matchingSourcePath(file);
+    const result = await MarknestApi.request("/api/assets/images", {
+      method: "POST",
+      body: JSON.stringify({
+        article_id: state.editingArticleId,
+        filename: file.name,
+        source_path: sourcePath,
+        mime_type: file.type,
+        data_base64: await readFileAsBase64(file)
+      })
+    });
+    $("#markdownInput").value = result.article.markdown_content;
+    state.unresolvedImages = result.unresolvedImages || [];
+  }
+  await Promise.all([loadMyArticles(), loadArticleAssets()]);
+  updatePreview(false);
 }
 
 function renderWorkspaceArticles() {
   const container = $("#workspaceArticles");
   if (!state.currentUser) {
-    container.innerHTML = "";
+    container.innerHTML = `<span class="empty-state">${translate("signInRequired")}</span>`;
     return;
   }
-  container.innerHTML = state.myArticles.map((article) => `
+  container.innerHTML = filteredArticles(state.myArticles).map((article) => `
     <button data-edit="${article.id}" class="${article.id === state.editingArticleId ? "active" : ""}">
       <strong>${escapeHtml(article.title)}</strong>
-      <small>${escapeHtml(article.status)} · ${new Date(article.updated_at).toLocaleString()}</small>
+      <small>● ${escapeHtml(article.status)} · ${new Date(article.updated_at).toLocaleDateString()}</small>
     </button>
   `).join("") || `<span class="empty-state">${translate("noArticlesYet")}</span>`;
+}
+
+function renderAssetDrawer(forceOpen = false) {
+  const drawer = $("#assetDrawer");
+  const warnings = $("#uploadWarnings");
+  warnings.hidden = state.unresolvedImages.length === 0;
+  warnings.innerHTML = state.unresolvedImages.length
+    ? `<strong>${translate("unresolvedAssets")}</strong><br>${state.unresolvedImages.map((image) => escapeHtml(image.path)).join("<br>")}`
+    : "";
+  $("#assetList").innerHTML = state.assets.map((asset) => `
+    <div class="asset-item">
+      <img src="${escapeHtml(asset.public_url)}" alt="" />
+      <div><strong>${escapeHtml(asset.original_filename)}</strong><small>${escapeHtml(asset.source_path || "")}</small></div>
+      <button class="danger" data-delete-asset="${asset.id}">${translate("delete")}</button>
+    </div>
+  `).join("") || `<span class="empty-state">${translate("noImageAssets")}</span>`;
+  if (forceOpen) drawer.hidden = false;
 }
 
 async function unpublishArticle() {
@@ -344,42 +470,37 @@ function renderStats() {
 
 async function renderAdmin() {
   if (state.currentUser?.role !== "admin") return;
-  try {
-    const [data, usersResult, articlesResult, commentsResult] = await Promise.all([
-      MarknestApi.request("/api/admin/dashboard"),
-      MarknestApi.request("/api/admin/users"),
-      MarknestApi.request("/api/admin/articles"),
-      MarknestApi.request("/api/admin/comments")
-    ]);
-    const metrics = Object.entries(data).map(([key, value]) =>
-      `<div class="admin-card"><span class="metric-label">${key}</span><span class="metric-value">${value}</span></div>`
-    ).join("");
-    const users = usersResult.users.map((user) => `
-      <li><strong>${user.username}</strong> (${user.role}, ${user.status})
-        <button data-admin-user="${user.id}" data-role="${user.role === "admin" ? "user" : "admin"}">${translate(user.role === "admin" ? "makeUser" : "makeAdmin")}</button>
-        <button data-admin-user="${user.id}" data-status="${user.status === "active" ? "disabled" : "active"}">${translate(user.status === "active" ? "disable" : "enable")}</button>
-      </li>`).join("");
-    const articles = articlesResult.articles.map((article) => `
-      <li><strong>${article.title}</strong> (${article.status})
-        <button data-admin-article="${article.id}" data-status="${article.status === "published" ? "unlisted" : "published"}">${translate(article.status === "published" ? "unlist" : "restore")}</button>
-      </li>`).join("");
-    const comments = commentsResult.comments.map((comment) => `
-      <li>${comment.content}
-        <button class="danger" data-delete-comment="${comment.id}" data-admin-refresh="true">${translate("delete")}</button>
-      </li>`).join("");
-    $("#adminGrid").innerHTML = `${metrics}
-      <div class="admin-card admin-wide"><h3>${translate("userManagement")}</h3><ul>${users}</ul></div>
-      <div class="admin-card admin-wide"><h3>${translate("articleManagement")}</h3><ul>${articles}</ul></div>
-      <div class="admin-card admin-wide"><h3>${translate("commentManagement")}</h3><ul>${comments}</ul></div>`;
-  } catch (error) {
-    showError(error);
-  }
+  const [data, usersResult, articlesResult, commentsResult] = await Promise.all([
+    MarknestApi.request("/api/admin/dashboard"),
+    MarknestApi.request("/api/admin/users"),
+    MarknestApi.request("/api/admin/articles"),
+    MarknestApi.request("/api/admin/comments")
+  ]);
+  const metrics = Object.entries(data).map(([key, value]) =>
+    `<div class="admin-card"><span class="metric-label">${escapeHtml(key)}</span><span class="metric-value">${value}</span></div>`
+  ).join("");
+  const users = usersResult.users.map((user) => `
+    <li><strong>${escapeHtml(user.username)}</strong> (${escapeHtml(user.role)}, ${escapeHtml(user.status)})
+      <button data-admin-user="${user.id}" data-role="${user.role === "admin" ? "user" : "admin"}">${translate(user.role === "admin" ? "makeUser" : "makeAdmin")}</button>
+      <button data-admin-user="${user.id}" data-status="${user.status === "active" ? "disabled" : "active"}">${translate(user.status === "active" ? "disable" : "enable")}</button>
+    </li>`).join("");
+  const articles = articlesResult.articles.map((article) => `
+    <li><strong>${escapeHtml(article.title)}</strong> (${escapeHtml(article.status)})
+      <button data-admin-article="${article.id}" data-status="${article.status === "published" ? "unlisted" : "published"}">${translate(article.status === "published" ? "unlist" : "restore")}</button>
+    </li>`).join("");
+  const comments = commentsResult.comments.map((comment) => `
+    <li>${escapeHtml(comment.content)} <button class="danger" data-delete-comment="${comment.id}" data-admin-refresh="true">${translate("delete")}</button></li>`
+  ).join("");
+  $("#adminGrid").innerHTML = `${metrics}
+    <div class="admin-card admin-wide"><h3>${translate("userManagement")}</h3><ul>${users}</ul></div>
+    <div class="admin-card admin-wide"><h3>${translate("articleManagement")}</h3><ul>${articles}</ul></div>
+    <div class="admin-card admin-wide"><h3>${translate("commentManagement")}</h3><ul>${comments}</ul></div>`;
 }
 
 function showView(name) {
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
   $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
-  if (name === "admin") renderAdmin();
+  if (name === "admin") renderAdmin().catch(showError);
 }
 
 async function render() {
@@ -389,6 +510,20 @@ async function render() {
   renderWorkspaceArticles();
   await renderArticleDetail();
   renderStats();
+  updatePreview(false);
+  if (state.editingArticleId) await loadArticleAssets();
+}
+
+function insertAtSelection(text, wrap = false) {
+  const editor = $("#markdownInput");
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const selected = editor.value.slice(start, end);
+  editor.value = `${editor.value.slice(0, start)}${text}${selected}${wrap ? text : ""}${editor.value.slice(end)}`;
+  const cursor = start + text.length + selected.length + (wrap ? text.length : 0);
+  editor.setSelectionRange(cursor, cursor);
+  editor.focus();
+  editor.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function bindEvents() {
@@ -401,52 +536,78 @@ function bindEvents() {
       else if (target.dataset.view) showView(target.dataset.view);
       else if (target.dataset.selectArticle) await selectArticle(target.dataset.selectArticle);
       else if (target.dataset.edit) await editArticle(target.dataset.edit);
+      else if (target.dataset.insert) insertAtSelection(target.dataset.insert);
+      else if (target.dataset.wrap) insertAtSelection(target.dataset.wrap, true);
       else if (target.dataset.copyCode !== undefined) {
-        const code = target.parentElement.querySelector("code")?.textContent || "";
-        await navigator.clipboard?.writeText(code);
+        await navigator.clipboard?.writeText(target.parentElement.querySelector("code")?.textContent || "");
         target.textContent = translate("copiedShareText");
-      }
-      else if (target.dataset.like) {
+      } else if (target.dataset.like) {
         await MarknestApi.request(`/api/articles/${target.dataset.like}/like`, { method: "POST" });
         await loadArticles();
         await render();
       } else if (target.dataset.share) {
         const share = await MarknestApi.request(`/api/articles/${target.dataset.share}/share`, {
-          method: "POST", body: JSON.stringify({ platform: target.dataset.platform })
+          method: "POST",
+          body: JSON.stringify({ platform: target.dataset.platform })
         });
-        navigator.clipboard?.writeText(share.text);
-        $("#shareBox").innerHTML = `<p>${share.text.replace(/\n/g, "<br>")}</p>`;
+        await navigator.clipboard?.writeText(share.text);
+        $("#shareBox").innerHTML = `<p>${escapeHtml(share.text).replace(/\n/g, "<br>")}</p>`;
       } else if (target.dataset.deleteComment) {
         await MarknestApi.request(`/api/comments/${target.dataset.deleteComment}`, { method: "DELETE" });
         if (target.dataset.adminRefresh) await renderAdmin();
         else await renderArticleDetail();
+      } else if (target.dataset.deleteAsset) {
+        await MarknestApi.request(`/api/assets/${target.dataset.deleteAsset}`, { method: "DELETE" });
+        const article = (await MarknestApi.request(`/api/articles/${state.editingArticleId}`)).article;
+        $("#markdownInput").value = article.markdown_content;
+        updatePreview(false);
+        await loadArticleAssets();
       } else if (target.dataset.adminUser) {
         const body = target.dataset.role ? { role: target.dataset.role } : { status: target.dataset.status };
-        await MarknestApi.request(`/api/admin/users/${target.dataset.adminUser}`, {
-          method: "PUT", body: JSON.stringify(body)
-        });
+        await MarknestApi.request(`/api/admin/users/${target.dataset.adminUser}`, { method: "PUT", body: JSON.stringify(body) });
         await renderAdmin();
       } else if (target.dataset.adminArticle) {
         await MarknestApi.request(`/api/admin/articles/${target.dataset.adminArticle}/status`, {
-          method: "PUT", body: JSON.stringify({ status: target.dataset.status })
+          method: "PUT",
+          body: JSON.stringify({ status: target.dataset.status })
         });
-        await loadArticles();
-        await renderAdmin();
+        await Promise.all([loadArticles(), renderAdmin()]);
       }
     } catch (error) {
       showError(error);
     }
   });
 
+  $("#quickCreateButton").addEventListener("click", () => {
+    if (!requireUser()) return;
+    resetEditor();
+    showView("workspace");
+  });
   $("#newArticleButton").addEventListener("click", () => requireUser() && resetEditor());
   $("#saveDraftButton").addEventListener("click", () => saveArticle("draft").catch(showError));
+  $("#publishButton").addEventListener("click", () => saveArticle("published").catch(showError));
   $("#unpublishButton").addEventListener("click", () => unpublishArticle().catch(showError));
   $("#deleteArticleButton").addEventListener("click", () => deleteArticle().catch(showError));
-  $("#publishButton").addEventListener("click", () => saveArticle("published").catch(showError));
-  $("#articleForm").addEventListener("input", updatePreview);
-  $("#markdownFile").addEventListener("change", (event) => uploadMarkdown(event.target.files[0]));
-  $("#localeSelect").addEventListener("change", (event) => setLocale(event.target.value));
-  $("#searchInput").addEventListener("input", renderArticleList);
+  $("#moreActionsButton").addEventListener("click", () => {
+    $("#moreActionsMenu").hidden = !$("#moreActionsMenu").hidden;
+  });
+  $("#insertImageButton").addEventListener("click", () => {
+    $("#assetDrawer").hidden = !$("#assetDrawer").hidden;
+  });
+  $("#articleForm").addEventListener("input", () => updatePreview());
+  $("#markdownFile").addEventListener("change", (event) => {
+    uploadMarkdown(event.target.files[0]).catch(showError);
+    event.target.value = "";
+  });
+  $("#imageFiles").addEventListener("change", (event) => {
+    uploadImageFiles(Array.from(event.target.files || [])).catch(showError);
+    event.target.value = "";
+  });
+  $("#localeSelect").addEventListener("change", (event) => setLocale(event.target.value).catch(showError));
+  $("#searchInput").addEventListener("input", () => {
+    renderArticleList();
+    renderWorkspaceArticles();
+  });
   document.addEventListener("submit", async (event) => {
     if (event.target.id !== "commentForm") return;
     event.preventDefault();
@@ -455,11 +616,10 @@ function bindEvents() {
     if (!input.value.trim()) return;
     try {
       await MarknestApi.request(`/api/articles/${state.selectedArticleId}/comments`, {
-        method: "POST", body: JSON.stringify({ content: input.value.trim() })
+        method: "POST",
+        body: JSON.stringify({ content: input.value.trim() })
       });
-      input.value = "";
-      await loadArticles();
-      await render();
+      await Promise.all([loadArticles(), renderArticleDetail()]);
     } catch (error) {
       showError(error);
     }
@@ -471,13 +631,12 @@ async function initialize() {
   try {
     await loadAuthProviders();
     await refreshSession();
-    await loadArticles();
-    await loadMyArticles();
+    await Promise.all([loadArticles(), loadMyArticles()]);
   } catch (error) {
     showError(error);
   }
-  await render();
   resetEditor();
+  await render();
   showView("reader");
 }
 
