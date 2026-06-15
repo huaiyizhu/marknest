@@ -35,6 +35,11 @@ body {
 
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
+button:disabled, .button.is-busy {
+  cursor: wait;
+  opacity: .72;
+  transform: none;
+}
 
 button, .button {
   min-height: 40px;
@@ -57,6 +62,121 @@ button:active { transform: translateY(1px); }
 button.primary, .button.primary { border-color: var(--primary); background: var(--primary); color: white; }
 button.primary:hover, .button.primary:hover { border-color: var(--primary-hover); background: var(--primary-hover); }
 button.danger { color: var(--danger); }
+
+.operation-progress {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  overflow: visible;
+  background: rgba(23, 105, 232, .12);
+}
+
+.operation-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  background: var(--primary);
+  box-shadow: 0 0 12px rgba(23, 105, 232, .7);
+  animation: progress-slide 1.15s ease-in-out infinite;
+}
+
+#operationProgressText {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  padding: 7px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.toast-stack {
+  position: fixed;
+  z-index: 110;
+  top: 84px;
+  right: 20px;
+  display: grid;
+  gap: 9px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: var(--shadow);
+  animation: toast-in .18s ease-out;
+  font-size: 13px;
+}
+
+.toast::before {
+  content: "✓";
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e8f8f2;
+  color: var(--success);
+  font-weight: 800;
+}
+
+.toast.error::before {
+  content: "!";
+  background: #fff0f2;
+  color: var(--danger);
+}
+
+.button-spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.content-skeleton { display: grid; gap: 14px; padding: 8px 0; }
+.content-skeleton span {
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #eef2f7 25%, #f8faff 50%, #eef2f7 75%);
+  background-size: 200% 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
+}
+.content-skeleton span:first-child { width: 42%; height: 34px; }
+.content-skeleton span:nth-child(2) { width: 68%; }
+.content-skeleton span:nth-child(3) { width: 100%; height: 180px; }
+.content-skeleton span:last-child { width: 76%; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes progress-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(360%); }
+}
+@keyframes skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+}
 
 input, textarea, select {
   width: 100%;

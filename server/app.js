@@ -1,12 +1,14 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const zlib = require("node:zlib");
 const QRCode = require("qrcode");
 const { articleProjection, serializeArticle } = require("./database");
 const { currentUser, requireAdmin, requireUser } = require("./auth");
 const { findLocalImages, parseFrontMatter, renderMarkdown } = require("../src/markdown");
 
 const root = path.resolve(__dirname, "..");
+const staticAssetCache = new Map();
 const imageTypes = {
   "image/png": ".png",
   "image/jpeg": ".jpg",
@@ -14,12 +16,33 @@ const imageTypes = {
   "image/gif": ".gif"
 };
 
-function json(res, status, body) {
+function acceptsGzip(req) {
+  return /\bgzip\b/.test(String(req?.headers?.["accept-encoding"] || ""));
+}
+
+function sendBuffer(req, res, status, buffer, headers = {}) {
+  const shouldCompress = buffer.length > 1024 && acceptsGzip(req);
+  const payload = shouldCompress ? zlib.gzipSync(buffer, { level: zlib.constants.Z_BEST_SPEED }) : buffer;
   res.writeHead(status, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store"
+    ...headers,
+    ...(shouldCompress ? { "content-encoding": "gzip", vary: "accept-encoding" } : {}),
+    "content-length": payload.length
   });
-  res.end(JSON.stringify(body));
+  res.end(payload);
+}
+
+function json(reqOrRes, resOrStatus, statusOrBody, bodyOrCache, maybeCache) {
+  const modernCall = typeof resOrStatus !== "number";
+  const req = modernCall ? reqOrRes : null;
+  const res = modernCall ? resOrStatus : reqOrRes;
+  const status = modernCall ? statusOrBody : resOrStatus;
+  const body = modernCall ? bodyOrCache : statusOrBody;
+  const cacheControl = modernCall ? maybeCache || "no-store" : bodyOrCache || "no-store";
+  const buffer = Buffer.from(body == null ? "" : JSON.stringify(body));
+  sendBuffer(req, res, status, buffer, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": cacheControl
+  });
 }
 
 async function readJson(req) {
@@ -162,9 +185,28 @@ function staticFile(req, res, pathname, uploadsDir) {
   const requested = pathname === "/" ? "index.html" : pathname.slice(1);
   const filename = path.resolve(root, requested);
   if (!filename.startsWith(root) || !fs.existsSync(filename) || fs.statSync(filename).isDirectory()) return false;
+  const extension = path.extname(filename).toLowerCase();
   const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".md": "text/markdown" };
-  res.writeHead(200, { "content-type": `${types[path.extname(filename)] || "application/octet-stream"}; charset=utf-8` });
-  fs.createReadStream(filename).pipe(res);
+  const cacheControl = extension === ".html"
+    ? "no-cache"
+    : "public, max-age=3600, must-revalidate";
+  const stats = fs.statSync(filename);
+  const etag = `"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`;
+  if (req.headers["if-none-match"] === etag) {
+    res.writeHead(304, { etag, "cache-control": cacheControl });
+    res.end();
+    return true;
+  }
+  let buffer = staticAssetCache.get(filename);
+  if (!buffer) {
+    buffer = fs.readFileSync(filename);
+    staticAssetCache.set(filename, buffer);
+  }
+  sendBuffer(req, res, 200, buffer, {
+    "content-type": `${types[extension] || "application/octet-stream"}; charset=utf-8`,
+    "cache-control": cacheControl,
+    etag
+  });
   return true;
 }
 
@@ -177,7 +219,7 @@ function createApp(db, options = {}) {
     const method = req.method;
 
     try {
-      if (pathname === "/api/health") return json(res, 200, { status: "ok" });
+      if (pathname === "/api/health") return json(req, res, 200, { status: "ok" });
       if (pathname === "/api/auth/providers") {
         const production = process.env.NODE_ENV === "production";
         const providers = [];
@@ -187,15 +229,15 @@ function createApp(db, options = {}) {
         if (!production || process.env.GOOGLE_AUTH_CLIENT_ID) {
           providers.push({ id: "google", loginUrl: "/.auth/login/google?post_login_redirect_uri=/" });
         }
-        return json(res, 200, {
+        return json(req, res, 200, {
           providers
         });
       }
       if (pathname === "/api/auth/me" && method === "GET") {
         const user = currentUser(req, db);
-        return json(res, 200, { authenticated: Boolean(user), user });
+        return json(req, res, 200, { authenticated: Boolean(user), user });
       }
-      if (pathname === "/api/auth/logout" && method === "POST") return json(res, 200, { logoutUrl: "/.auth/logout?post_logout_redirect_uri=/" });
+      if (pathname === "/api/auth/logout" && method === "POST") return json(req, res, 200, { logoutUrl: "/.auth/logout?post_logout_redirect_uri=/" });
 
       if (pathname === "/api/users/me/locale" && method === "PUT") {
         const user = requireUser(req, db);
@@ -209,9 +251,10 @@ function createApp(db, options = {}) {
         const user = currentUser(req, db);
         const mine = url.searchParams.get("mine") === "true";
         const rows = mine && user
-          ? db.prepare(`${articleProjection()} WHERE a.author_id = ? ORDER BY a.updated_at DESC`).all(user.id)
-          : db.prepare(`${articleProjection()} WHERE a.status = 'published' AND a.visibility = 'public' ORDER BY a.published_at DESC`).all();
-        return json(res, 200, { articles: rows.map(serializeArticle) });
+          ? db.prepare(`${articleProjection({ includeContent: false })} WHERE a.author_id = ? ORDER BY a.updated_at DESC`).all(user.id)
+          : db.prepare(`${articleProjection({ includeContent: false })} WHERE a.status = 'published' AND a.visibility = 'public' ORDER BY a.published_at DESC`).all();
+        return json(req, res, 200, { articles: rows.map(serializeArticle) },
+          mine ? "no-store" : "public, max-age=15, stale-while-revalidate=30");
       }
 
       if (pathname === "/api/articles" && method === "POST") {
@@ -326,7 +369,7 @@ function createApp(db, options = {}) {
         const user = currentUser(req, db);
         if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
         db.prepare("UPDATE articles SET view_count = view_count + 1 WHERE id = ?").run(article.id);
-        return json(res, 200, { article: publicArticle({ ...article, view_count: article.view_count + 1 }) });
+        return json(req, res, 200, { article: publicArticle({ ...article, view_count: article.view_count + 1 }) });
       }
 
       if (articleMatch && method === "PUT") {
@@ -404,7 +447,7 @@ function createApp(db, options = {}) {
           `SELECT c.*, u.username AS author_name FROM comments c JOIN users u ON u.id = c.user_id
            WHERE c.article_id = ? AND c.status = 'active' ORDER BY c.created_at ASC`
         ).all(commentsMatch[1]);
-        return json(res, 200, { comments });
+        return json(req, res, 200, { comments });
       }
       if (commentsMatch && method === "POST") {
         const user = requireUser(req, db);

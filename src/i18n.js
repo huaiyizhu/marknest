@@ -31,7 +31,12 @@
       uploadImages: "上传图片", localImagesWarning: "仍有本地图片引用待处理：",
       imageUploadSuccess: "图片已上传并替换引用", imageUploadFailed: "图片上传失败",
       publishBlockedImages: "发布前请先解决所有本地图片引用。", uploadedAssets: "已上传资源",
-      unresolvedAssets: "待处理引用", noImageAssets: "暂无图片资源", languageLabel: "语言"
+      unresolvedAssets: "待处理引用", noImageAssets: "暂无图片资源", languageLabel: "语言",
+      processing: "正在处理，请稍候…", loadingArticle: "正在加载文章…", savingDraft: "正在保存草稿…",
+      publishingArticle: "正在发布文章…", uploadingFile: "正在上传文件…", updating: "正在更新…",
+      loadingAdmin: "正在加载管理数据…", savedSuccess: "草稿已保存", publishedSuccess: "文章已发布",
+      uploadSuccess: "上传完成", updateSuccess: "操作已完成", commentSuccess: "评论已发布",
+      unexpectedError: "操作失败，请稍后重试"
     },
     "en-US": {
       navReader: "Reader", navWorkspace: "Workspace", navStats: "Stats", navAdmin: "Admin",
@@ -60,7 +65,12 @@
       uploadImages: "Upload images", localImagesWarning: "Local image references still need attention:",
       imageUploadSuccess: "Image uploaded and reference replaced", imageUploadFailed: "Image upload failed",
       publishBlockedImages: "Resolve all local image references before publishing.", uploadedAssets: "Uploaded assets",
-      unresolvedAssets: "Unresolved references", noImageAssets: "No image assets", languageLabel: "Language"
+      unresolvedAssets: "Unresolved references", noImageAssets: "No image assets", languageLabel: "Language",
+      processing: "Working on it…", loadingArticle: "Loading article…", savingDraft: "Saving draft…",
+      publishingArticle: "Publishing article…", uploadingFile: "Uploading file…", updating: "Updating…",
+      loadingAdmin: "Loading administration data…", savedSuccess: "Draft saved", publishedSuccess: "Article published",
+      uploadSuccess: "Upload complete", updateSuccess: "Done", commentSuccess: "Comment published",
+      unexpectedError: "Something went wrong. Please try again."
     }
   };
 

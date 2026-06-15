@@ -91,10 +91,16 @@ function upsertUser(db, principal) {
     .get(principal.provider, principal.providerUserId);
 
   if (existing) {
-    db.prepare(
-      `UPDATE users SET username = ?, email = ?, role = CASE WHEN role = 'admin' THEN role ELSE ? END,
-       last_login_at = ?, updated_at = ? WHERE id = ?`
-    ).run(principal.name, principal.email, role, now, now, existing.id);
+    const nextRole = existing.role === "admin" ? "admin" : role;
+    const loginIsStale = Date.now() - Date.parse(existing.last_login_at || 0) > 5 * 60 * 1000;
+    const profileChanged = existing.username !== principal.name
+      || existing.email !== principal.email
+      || existing.role !== nextRole;
+    if (loginIsStale || profileChanged) {
+      db.prepare(
+        `UPDATE users SET username = ?, email = ?, role = ?, last_login_at = ?, updated_at = ? WHERE id = ?`
+      ).run(principal.name, principal.email, nextRole, now, now, existing.id);
+    }
     return db.prepare("SELECT * FROM users WHERE id = ?").get(existing.id);
   }
 

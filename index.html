@@ -6,7 +6,12 @@
     <title>Marknest</title>
     <link rel="stylesheet" href="src/styles.css" />
   </head>
-  <body>
+  <body class="app-loading">
+    <div class="operation-progress" id="operationProgress" role="status" aria-live="polite" hidden>
+      <span class="operation-progress-bar"></span>
+      <span id="operationProgressText"></span>
+    </div>
+    <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
     <header class="topbar">
       <a class="brand" href="#" aria-label="Marknest">
         <span class="brand-mark">M</span>
@@ -64,7 +69,9 @@
             </div>
             <div class="article-list" id="articleList"></div>
           </aside>
-          <article class="article-detail social-article" id="articleDetail"></article>
+          <article class="article-detail social-article" id="articleDetail">
+            <div class="content-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          </article>
         </section>
 
         <section class="view workspace-view" id="workspaceView">

@@ -21,24 +21,36 @@
   }
 
   async function request(path, options = {}) {
-    const response = await fetch(path, {
-      ...options,
-      cache: options.cache || "no-store",
-      credentials: options.credentials || "same-origin",
-      headers: {
-        "content-type": "application/json",
-        ...authHeaders(),
-        ...(options.headers || {})
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 30000);
+    try {
+      const response = await fetch(path, {
+        ...options,
+        cache: options.cache || "no-store",
+        credentials: options.credentials || "same-origin",
+        signal: options.signal || controller.signal,
+        headers: {
+          "content-type": "application/json",
+          ...authHeaders(),
+          ...(options.headers || {})
+        }
+      });
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : null;
+      if (!response.ok) {
+        const error = new Error(body?.error || `Request failed (${response.status})`);
+        error.status = response.status;
+        throw error;
       }
-    });
-    const text = await response.text();
-    const body = text ? JSON.parse(text) : null;
-    if (!response.ok) {
-      const error = new Error(body?.error || `Request failed (${response.status})`);
-      error.status = response.status;
+      return body;
+    } catch (error) {
+      if (error.name === "AbortError") {
+        throw new Error("The server took too long to respond. Please try again.");
+      }
       throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    return body;
   }
 
   function signIn(provider) {

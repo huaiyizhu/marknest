@@ -91,13 +91,30 @@ function createDatabase(filename = ":memory:") {
       after_value TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_articles_public
+      ON articles(status, visibility, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_articles_author_updated
+      ON articles(author_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_comments_article_status
+      ON comments(article_id, status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_likes_article
+      ON likes(article_id);
+    CREATE INDEX IF NOT EXISTS idx_shares_article
+      ON shares(article_id);
+    CREATE INDEX IF NOT EXISTS idx_assets_article_status
+      ON assets(article_id, status, created_at DESC);
   `);
   return db;
 }
 
-function articleProjection() {
+function articleProjection(options = {}) {
+  const content = options.includeContent === false
+    ? ""
+    : "a.markdown_content,";
   return `
-    SELECT a.*,
+    SELECT a.id, a.author_id, a.title, a.slug, a.summary, ${content}
+      a.cover_image_url, a.status, a.visibility, a.tags, a.category,
+      a.view_count, a.published_at, a.created_at, a.updated_at,
       u.username AS author_name,
       (SELECT COUNT(*) FROM likes l WHERE l.article_id = a.id) AS like_count,
       (SELECT COUNT(*) FROM comments c WHERE c.article_id = a.id AND c.status = 'active') AS comment_count,

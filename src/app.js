@@ -4,6 +4,7 @@ const state = {
   articles: [],
   myArticles: [],
   assets: [],
+  commentsByArticle: {},
   unresolvedImages: [],
   selectedArticleId: null,
   editingArticleId: null,
@@ -15,6 +16,8 @@ const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 let t = MarknestI18n.createTranslator(state.locale);
 let autosaveTimer = null;
 let isSaving = false;
+let activeOperations = 0;
+let progressTimer = null;
 
 function translate(key) {
   return t(key);
@@ -30,7 +33,66 @@ function initials(value) {
 
 function showError(error) {
   console.error(error);
-  alert(error.message || "Unexpected error");
+  showToast(error.message || translate("unexpectedError"), "error");
+}
+
+function showToast(message, type = "success") {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  $("#toastStack").append(toast);
+  setTimeout(() => toast.remove(), type === "error" ? 6000 : 3200);
+}
+
+function beginOperation(message) {
+  activeOperations += 1;
+  clearTimeout(progressTimer);
+  progressTimer = setTimeout(() => {
+    $("#operationProgressText").textContent = message || translate("processing");
+    $("#operationProgress").hidden = false;
+  }, 180);
+}
+
+function endOperation() {
+  activeOperations = Math.max(0, activeOperations - 1);
+  if (activeOperations) return;
+  clearTimeout(progressTimer);
+  $("#operationProgress").hidden = true;
+}
+
+async function runAction(button, message, action, successMessage) {
+  if (button?.dataset.busy === "true") return null;
+  const replaceContent = button?.tagName === "BUTTON";
+  const originalHtml = button?.innerHTML;
+  if (button) {
+    button.dataset.busy = "true";
+    button.classList.add("is-busy");
+    button.setAttribute("aria-busy", "true");
+    if (replaceContent) {
+      button.disabled = true;
+      button.innerHTML = `<span class="button-spinner" aria-hidden="true"></span><span>${escapeHtml(message)}</span>`;
+    }
+  }
+  beginOperation(message);
+  try {
+    const result = await action();
+    if (successMessage) showToast(successMessage);
+    return result;
+  } catch (error) {
+    showError(error);
+    return null;
+  } finally {
+    endOperation();
+    if (button) {
+      button.classList.remove("is-busy");
+      button.removeAttribute("aria-busy");
+      delete button.dataset.busy;
+      if (replaceContent) {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+      }
+    }
+  }
 }
 
 function readFileAsText(file) {
@@ -183,27 +245,33 @@ function renderArticleList() {
 }
 
 async function selectArticle(id) {
-  const article = (await MarknestApi.request(`/api/articles/${id}`)).article;
+  state.selectedArticleId = id;
+  renderArticleList();
+  $("#articleDetail").innerHTML = `<div class="content-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div>`;
+  const [articleResult, commentsResult] = await Promise.all([
+    MarknestApi.request(`/api/articles/${id}`),
+    MarknestApi.request(`/api/articles/${id}/comments`)
+  ]);
+  const article = articleResult.article;
   const index = state.articles.findIndex((item) => item.id === id);
   if (index >= 0) state.articles[index] = article;
-  state.selectedArticleId = id;
-  await renderArticleDetail();
+  state.commentsByArticle[id] = commentsResult.comments || [];
+  renderArticleDetail();
   renderArticleList();
 }
 
-async function renderArticleDetail() {
+function renderArticleDetail() {
   const article = state.articles.find((item) => item.id === state.selectedArticleId);
   const detail = $("#articleDetail");
   if (!article) {
     detail.innerHTML = `<p class="empty-state">${translate("selectArticle")}</p>`;
     return;
   }
-  let comments = [];
-  try {
-    comments = (await MarknestApi.request(`/api/articles/${article.id}/comments`)).comments || [];
-  } catch (error) {
-    console.error(error);
+  if (article.markdown_content == null) {
+    detail.innerHTML = `<div class="content-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div>`;
+    return;
   }
+  const comments = state.commentsByArticle[article.id] || [];
   const headings = MarknestMarkdown.extractHeadings(article.markdown_content).filter((heading) => heading.level <= 3);
   const toc = headings.length > 1 ? `<nav class="article-toc"><strong>${translate("tableOfContents")}</strong>${headings.map((heading) =>
     `<a href="#${heading.id}" style="padding-left:${(heading.level - 1) * 12}px">${escapeHtml(heading.text)}</a>`).join("")}</nav>` : "";
@@ -320,7 +388,11 @@ async function saveArticle(status, options = {}) {
     $("#draftStatus").textContent = article.status === "published" ? translate("published") : translate("draft");
     $("#autosaveStatus").textContent = `${translate("saved")} · ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     await Promise.all([loadArticles(), loadMyArticles()]);
-    if (status === "published") state.selectedArticleId = article.id;
+    if (status === "published") {
+      state.selectedArticleId = article.id;
+      const index = state.articles.findIndex((item) => item.id === article.id);
+      if (index >= 0) state.articles[index] = article;
+    }
     if (!options.silent) await render();
     else renderWorkspaceArticles();
     return article;
@@ -500,7 +572,6 @@ async function renderAdmin() {
 function showView(name) {
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
   $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
-  if (name === "admin") renderAdmin().catch(showError);
 }
 
 async function render() {
@@ -508,10 +579,10 @@ async function render() {
   renderAuth();
   renderArticleList();
   renderWorkspaceArticles();
-  await renderArticleDetail();
+  renderArticleDetail();
   renderStats();
   updatePreview(false);
-  if (state.editingArticleId) await loadArticleAssets();
+  if (state.editingArticleId) loadArticleAssets().catch(showError);
 }
 
 function insertAtSelection(text, wrap = false) {
@@ -531,47 +602,77 @@ function bindEvents() {
     const target = event.target.closest("button");
     if (!target) return;
     try {
-      if (target.dataset.signin) await signIn(target.dataset.signin);
-      else if (target.id === "signOutButton") await signOut();
-      else if (target.dataset.view) showView(target.dataset.view);
-      else if (target.dataset.selectArticle) await selectArticle(target.dataset.selectArticle);
-      else if (target.dataset.edit) await editArticle(target.dataset.edit);
+      if (target.dataset.signin) {
+        await runAction(target, translate("processing"), () => signIn(target.dataset.signin));
+      } else if (target.id === "signOutButton") {
+        await runAction(target, translate("processing"), signOut);
+      } else if (target.dataset.view) {
+        showView(target.dataset.view);
+        if (target.dataset.view === "admin") {
+          await runAction(target, translate("loadingAdmin"), renderAdmin);
+        }
+      } else if (target.dataset.selectArticle) {
+        await runAction(target, translate("loadingArticle"), () => selectArticle(target.dataset.selectArticle));
+      } else if (target.dataset.edit) {
+        await runAction(target, translate("loadingArticle"), () => editArticle(target.dataset.edit));
+      }
       else if (target.dataset.insert) insertAtSelection(target.dataset.insert);
       else if (target.dataset.wrap) insertAtSelection(target.dataset.wrap, true);
       else if (target.dataset.copyCode !== undefined) {
         await navigator.clipboard?.writeText(target.parentElement.querySelector("code")?.textContent || "");
         target.textContent = translate("copiedShareText");
       } else if (target.dataset.like) {
-        await MarknestApi.request(`/api/articles/${target.dataset.like}/like`, { method: "POST" });
-        await loadArticles();
-        await render();
+        await runAction(target, translate("updating"), async () => {
+          const article = (await MarknestApi.request(`/api/articles/${target.dataset.like}/like`, { method: "POST" })).article;
+          const index = state.articles.findIndex((item) => item.id === article.id);
+          if (index >= 0) state.articles[index] = article;
+          renderArticleDetail();
+          renderArticleList();
+        }, translate("updateSuccess"));
       } else if (target.dataset.share) {
-        const share = await MarknestApi.request(`/api/articles/${target.dataset.share}/share`, {
-          method: "POST",
-          body: JSON.stringify({ platform: target.dataset.platform })
-        });
-        await navigator.clipboard?.writeText(share.text);
-        $("#shareBox").innerHTML = `<p>${escapeHtml(share.text).replace(/\n/g, "<br>")}</p>`;
+        await runAction(target, translate("processing"), async () => {
+          const share = await MarknestApi.request(`/api/articles/${target.dataset.share}/share`, {
+            method: "POST",
+            body: JSON.stringify({ platform: target.dataset.platform })
+          });
+          await navigator.clipboard?.writeText(share.text);
+          $("#shareBox").innerHTML = `<p>${escapeHtml(share.text).replace(/\n/g, "<br>")}</p>`;
+        }, translate("copiedShareText"));
       } else if (target.dataset.deleteComment) {
-        await MarknestApi.request(`/api/comments/${target.dataset.deleteComment}`, { method: "DELETE" });
-        if (target.dataset.adminRefresh) await renderAdmin();
-        else await renderArticleDetail();
+        await runAction(target, translate("updating"), async () => {
+          await MarknestApi.request(`/api/comments/${target.dataset.deleteComment}`, { method: "DELETE" });
+          if (target.dataset.adminRefresh) {
+            await renderAdmin();
+          } else {
+            const comments = state.commentsByArticle[state.selectedArticleId] || [];
+            state.commentsByArticle[state.selectedArticleId] = comments.filter((comment) => comment.id !== target.dataset.deleteComment);
+            const article = state.articles.find((item) => item.id === state.selectedArticleId);
+            if (article) article.comment_count = Math.max(0, article.comment_count - 1);
+            renderArticleDetail();
+          }
+        }, translate("updateSuccess"));
       } else if (target.dataset.deleteAsset) {
-        await MarknestApi.request(`/api/assets/${target.dataset.deleteAsset}`, { method: "DELETE" });
-        const article = (await MarknestApi.request(`/api/articles/${state.editingArticleId}`)).article;
-        $("#markdownInput").value = article.markdown_content;
-        updatePreview(false);
-        await loadArticleAssets();
+        await runAction(target, translate("updating"), async () => {
+          await MarknestApi.request(`/api/assets/${target.dataset.deleteAsset}`, { method: "DELETE" });
+          const article = (await MarknestApi.request(`/api/articles/${state.editingArticleId}`)).article;
+          $("#markdownInput").value = article.markdown_content;
+          updatePreview(false);
+          await loadArticleAssets();
+        }, translate("updateSuccess"));
       } else if (target.dataset.adminUser) {
-        const body = target.dataset.role ? { role: target.dataset.role } : { status: target.dataset.status };
-        await MarknestApi.request(`/api/admin/users/${target.dataset.adminUser}`, { method: "PUT", body: JSON.stringify(body) });
-        await renderAdmin();
+        await runAction(target, translate("updating"), async () => {
+          const body = target.dataset.role ? { role: target.dataset.role } : { status: target.dataset.status };
+          await MarknestApi.request(`/api/admin/users/${target.dataset.adminUser}`, { method: "PUT", body: JSON.stringify(body) });
+          await renderAdmin();
+        }, translate("updateSuccess"));
       } else if (target.dataset.adminArticle) {
-        await MarknestApi.request(`/api/admin/articles/${target.dataset.adminArticle}/status`, {
-          method: "PUT",
-          body: JSON.stringify({ status: target.dataset.status })
-        });
-        await Promise.all([loadArticles(), renderAdmin()]);
+        await runAction(target, translate("updating"), async () => {
+          await MarknestApi.request(`/api/admin/articles/${target.dataset.adminArticle}/status`, {
+            method: "PUT",
+            body: JSON.stringify({ status: target.dataset.status })
+          });
+          await Promise.all([loadArticles(), renderAdmin()]);
+        }, translate("updateSuccess"));
       }
     } catch (error) {
       showError(error);
@@ -584,10 +685,14 @@ function bindEvents() {
     showView("workspace");
   });
   $("#newArticleButton").addEventListener("click", () => requireUser() && resetEditor());
-  $("#saveDraftButton").addEventListener("click", () => saveArticle("draft").catch(showError));
-  $("#publishButton").addEventListener("click", () => saveArticle("published").catch(showError));
-  $("#unpublishButton").addEventListener("click", () => unpublishArticle().catch(showError));
-  $("#deleteArticleButton").addEventListener("click", () => deleteArticle().catch(showError));
+  $("#saveDraftButton").addEventListener("click", (event) =>
+    runAction(event.currentTarget, translate("savingDraft"), () => saveArticle("draft"), translate("savedSuccess")));
+  $("#publishButton").addEventListener("click", (event) =>
+    runAction(event.currentTarget, translate("publishingArticle"), () => saveArticle("published"), translate("publishedSuccess")));
+  $("#unpublishButton").addEventListener("click", (event) =>
+    runAction(event.currentTarget, translate("updating"), unpublishArticle, translate("updateSuccess")));
+  $("#deleteArticleButton").addEventListener("click", (event) =>
+    runAction(event.currentTarget, translate("updating"), deleteArticle, translate("updateSuccess")));
   $("#moreActionsButton").addEventListener("click", () => {
     $("#moreActionsMenu").hidden = !$("#moreActionsMenu").hidden;
   });
@@ -596,11 +701,11 @@ function bindEvents() {
   });
   $("#articleForm").addEventListener("input", () => updatePreview());
   $("#markdownFile").addEventListener("change", (event) => {
-    uploadMarkdown(event.target.files[0]).catch(showError);
+    runAction(event.target.closest("label"), translate("uploadingFile"), () => uploadMarkdown(event.target.files[0]), translate("uploadSuccess"));
     event.target.value = "";
   });
   $("#imageFiles").addEventListener("change", (event) => {
-    uploadImageFiles(Array.from(event.target.files || [])).catch(showError);
+    runAction(event.target.closest("label"), translate("uploadingFile"), () => uploadImageFiles(Array.from(event.target.files || [])), translate("uploadSuccess"));
     event.target.value = "";
   });
   $("#localeSelect").addEventListener("change", (event) => setLocale(event.target.value).catch(showError));
@@ -615,11 +720,18 @@ function bindEvents() {
     const input = $("#commentInput");
     if (!input.value.trim()) return;
     try {
-      await MarknestApi.request(`/api/articles/${state.selectedArticleId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ content: input.value.trim() })
-      });
-      await Promise.all([loadArticles(), renderArticleDetail()]);
+      await runAction(null, translate("updating"), async () => {
+        await MarknestApi.request(`/api/articles/${state.selectedArticleId}/comments`, {
+          method: "POST",
+          body: JSON.stringify({ content: input.value.trim() })
+        });
+        state.commentsByArticle[state.selectedArticleId] = (
+          await MarknestApi.request(`/api/articles/${state.selectedArticleId}/comments`)
+        ).comments || [];
+        const article = state.articles.find((item) => item.id === state.selectedArticleId);
+        if (article) article.comment_count = state.commentsByArticle[state.selectedArticleId].length;
+        renderArticleDetail();
+      }, translate("commentSuccess"));
     } catch (error) {
       showError(error);
     }
@@ -628,16 +740,23 @@ function bindEvents() {
 
 async function initialize() {
   bindEvents();
+  resetEditor();
+  render();
+  showView("reader");
+  beginOperation(translate("processing"));
   try {
-    await loadAuthProviders();
-    await refreshSession();
+    await Promise.all([loadAuthProviders(), refreshSession()]);
     await Promise.all([loadArticles(), loadMyArticles()]);
+    render();
+    if (state.selectedArticleId) {
+      await selectArticle(state.selectedArticleId);
+    }
   } catch (error) {
     showError(error);
+  } finally {
+    endOperation();
+    document.body.classList.remove("app-loading");
   }
-  resetEditor();
-  await render();
-  showView("reader");
 }
 
 initialize();

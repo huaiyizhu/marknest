@@ -201,6 +201,30 @@ async function run() {
   const listed = await request("/api/articles");
   assert.equal(listed.status, 200);
   assert.equal(listed.body.articles.length, 1);
+  assert.equal("markdown_content" in listed.body.articles[0], false);
+
+  await request(`/api/articles/${articleId}`, {
+    method: "PUT",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ markdown_content: `# API Article\n\n${"Long article content. ".repeat(180)}` })
+  });
+  const compressedArticle = await fetch(`${baseUrl}/api/articles/${articleId}`, {
+    headers: { "accept-encoding": "gzip" }
+  });
+  assert.equal(compressedArticle.status, 200);
+  assert.equal(compressedArticle.headers.get("content-encoding"), "gzip");
+  assert.equal((await compressedArticle.json()).article.title, "API Article");
+
+  const cachedScript = await fetch(`${baseUrl}/src/app.js`, {
+    headers: { "accept-encoding": "gzip" }
+  });
+  assert.equal(cachedScript.status, 200);
+  assert.match(cachedScript.headers.get("cache-control"), /max-age=3600/);
+  assert.equal(cachedScript.headers.get("content-encoding"), "gzip");
+  const revalidatedScript = await fetch(`${baseUrl}/src/app.js`, {
+    headers: { "if-none-match": cachedScript.headers.get("etag") }
+  });
+  assert.equal(revalidatedScript.status, 304);
 
   const liked = await request(`/api/articles/${articleId}/like`, {
     method: "POST",
