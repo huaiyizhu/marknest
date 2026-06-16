@@ -23,8 +23,8 @@
         <kbd>⌘ K</kbd>
       </label>
       <div class="topbar-actions">
-        <button class="icon-button quick-create" id="quickCreateButton" aria-label="New article">+</button>
-        <button class="icon-button" aria-label="Notifications">
+        <button class="icon-button quick-create" id="quickCreateButton" type="button" aria-label="New article">+</button>
+        <button class="icon-button" type="button" aria-label="Notifications">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
         </button>
         <label class="locale-control">
@@ -38,16 +38,16 @@
     <main class="app-frame">
       <aside class="icon-rail">
         <nav aria-label="Primary">
-          <button class="nav-item active" data-view="reader" data-label-key="navReader" aria-label="Reader">
+          <button class="nav-item active" type="button" data-view="reader" data-label-key="navReader" aria-label="Reader">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v17H6.5A2.5 2.5 0 0 0 4 22V5.5ZM20 5.5A2.5 2.5 0 0 0 17.5 3H13v17h4.5A2.5 2.5 0 0 1 20 22V5.5Z"/></svg>
           </button>
-          <button class="nav-item" data-view="workspace" data-label-key="navWorkspace" aria-label="Workspace">
+          <button class="nav-item" type="button" data-view="workspace" data-label-key="navWorkspace" aria-label="Workspace">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4ZM13.5 6.5l4 4"/></svg>
           </button>
-          <button class="nav-item" data-view="stats" data-label-key="navStats" aria-label="Stats">
+          <button class="nav-item" type="button" data-view="stats" data-label-key="navStats" aria-label="Stats">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10m7 10V4m7 16v-7"/></svg>
           </button>
-          <button class="nav-item admin-only" data-view="admin" data-label-key="navAdmin" aria-label="Admin">
+          <button class="nav-item admin-only" type="button" data-view="admin" data-label-key="navAdmin" aria-label="Admin">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1 1.5 2.6-2.8 2.8-2.6-1.5-.1.1a8 8 0 0 1-3 .9H9.5a8 8 0 0 1-3-.9l-.1-.1-2.6 1.5L1 17.7l1.5-2.6-.1-.1a8 8 0 0 1-.9-3V9a8 8 0 0 1 .9-3l.1-.1L1 3.3 3.8.5 6.4 2l.1-.1a8 8 0 0 1 3-.9h3a8 8 0 0 1 3 .9l.1.1L18.2.5 21 3.3l-1.5 2.6.1.1a8 8 0 0 1 .9 3v3a8 8 0 0 1-1.1 3Z"/></svg>
           </button>
         </nav>
@@ -76,7 +76,7 @@
 
         <section class="view workspace-view" id="workspaceView">
           <aside class="document-sidebar workspace-library">
-            <button class="primary create-button" id="newArticleButton">
+            <button class="primary create-button" id="newArticleButton" type="button">
               <span>＋</span><span data-i18n="newArticle">新建文章</span>
             </button>
             <div class="library-tabs">
@@ -101,12 +101,12 @@
                   <span data-i18n="uploadMd">上传 .md</span>
                   <input id="markdownFile" type="file" accept=".md,text/markdown,text/plain" />
                 </label>
-                <button id="saveDraftButton" data-i18n="saveDraft">保存草稿</button>
-                <button id="publishButton" class="primary" data-i18n="publish">发布</button>
-                <button class="icon-button more-button" id="moreActionsButton" aria-label="More actions">•••</button>
+                <button id="saveDraftButton" type="button" data-i18n="saveDraft">保存草稿</button>
+                <button id="publishButton" class="primary" type="button" data-i18n="publish">发布</button>
+                <button class="icon-button more-button" id="moreActionsButton" type="button" aria-label="More actions">•••</button>
                 <div class="more-menu" id="moreActionsMenu" hidden>
-                  <button id="unpublishButton" data-i18n="unpublish">撤回发布</button>
-                  <button id="deleteArticleButton" class="danger" data-i18n="delete">删除文章</button>
+                  <button id="unpublishButton" type="button" data-i18n="unpublish">撤回发布</button>
+                  <button id="deleteArticleButton" class="danger" type="button" data-i18n="delete">删除文章</button>
                 </div>
               </div>
             </div>

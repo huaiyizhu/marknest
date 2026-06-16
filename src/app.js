@@ -18,6 +18,8 @@ let autosaveTimer = null;
 let isSaving = false;
 let activeOperations = 0;
 let progressTimer = null;
+let pendingDeleteArticleId = null;
+let pendingDeleteTimer = null;
 
 function translate(key) {
   return t(key);
@@ -42,6 +44,37 @@ function showToast(message, type = "success") {
   toast.textContent = message;
   $("#toastStack").append(toast);
   setTimeout(() => toast.remove(), type === "error" ? 6000 : 3200);
+}
+
+function clearAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = null;
+}
+
+function closeMoreActions() {
+  const menu = $("#moreActionsMenu");
+  if (menu) menu.hidden = true;
+}
+
+function clearPendingDelete() {
+  clearTimeout(pendingDeleteTimer);
+  pendingDeleteTimer = null;
+  pendingDeleteArticleId = null;
+}
+
+function syncArticle(article) {
+  if (!article) return;
+  const mineIndex = state.myArticles.findIndex((item) => item.id === article.id);
+  if (mineIndex >= 0) state.myArticles[mineIndex] = article;
+  const publicIndex = state.articles.findIndex((item) => item.id === article.id);
+  if (article.status === "published" && article.visibility === "public") {
+    if (publicIndex >= 0) state.articles[publicIndex] = article;
+    else state.articles.unshift(article);
+    state.selectedArticleId = article.id;
+  } else if (publicIndex >= 0) {
+    state.articles.splice(publicIndex, 1);
+    if (state.selectedArticleId === article.id) state.selectedArticleId = state.articles[0]?.id || null;
+  }
 }
 
 function beginOperation(message) {
@@ -76,7 +109,7 @@ async function runAction(button, message, action, successMessage) {
   beginOperation(message);
   try {
     const result = await action();
-    if (successMessage) showToast(successMessage);
+    if (successMessage && !result?.cancelled) showToast(successMessage);
     return result;
   } catch (error) {
     showError(error);
@@ -512,18 +545,46 @@ function renderAssetDrawer(forceOpen = false) {
 
 async function unpublishArticle() {
   if (!state.editingArticleId) return;
-  await MarknestApi.request(`/api/articles/${state.editingArticleId}/unpublish`, { method: "POST" });
-  await Promise.all([loadArticles(), loadMyArticles()]);
+  clearAutosave();
+  const result = await MarknestApi.request(`/api/articles/${state.editingArticleId}/unpublish`, { method: "POST" });
+  syncArticle(result.article);
+  await loadMyArticles();
   $("#draftStatus").textContent = translate("draft");
-  await render();
+  renderArticleList();
+  renderWorkspaceArticles();
+  renderStats();
+  renderArticleDetail();
+  closeMoreActions();
+  await loadArticleAssets();
+  return result.article;
+}
+
+function removeArticleFromState(articleId) {
+  state.articles = state.articles.filter((article) => article.id !== articleId);
+  state.myArticles = state.myArticles.filter((article) => article.id !== articleId);
+  if (state.selectedArticleId === articleId) state.selectedArticleId = state.articles[0]?.id || null;
 }
 
 async function deleteArticle() {
-  if (!state.editingArticleId || !confirm(translate("confirmDeleteArticle"))) return;
-  await MarknestApi.request(`/api/articles/${state.editingArticleId}`, { method: "DELETE" });
-  await Promise.all([loadArticles(), loadMyArticles()]);
+  if (!state.editingArticleId) return null;
+  const articleId = state.editingArticleId;
+  if (pendingDeleteArticleId !== articleId) {
+    clearPendingDelete();
+    pendingDeleteArticleId = articleId;
+    pendingDeleteTimer = setTimeout(clearPendingDelete, 7000);
+    showToast(translate("deleteConfirmPrompt"), "error");
+    return { cancelled: true };
+  }
+  clearPendingDelete();
+  clearAutosave();
+  await MarknestApi.request(`/api/articles/${articleId}`, { method: "DELETE" });
+  removeArticleFromState(articleId);
   resetEditor();
-  await render();
+  renderArticleList();
+  renderStats();
+  renderArticleDetail();
+  closeMoreActions();
+  return { deleted: true };
 }
 
 function renderStats() {
