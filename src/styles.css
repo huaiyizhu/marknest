@@ -489,23 +489,64 @@ h1, h2, h3, p { margin-top: 0; }
 .document-status { display: flex; align-items: center; gap: 9px; margin-top: 7px; color: var(--muted); font-size: 12px; }
 .status-pill { padding: 4px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-weight: 700; }
 
-.publish-actions { position: relative; display: flex; align-items: center; gap: 8px; }
+.publish-actions { position: relative; display: flex; align-items: center; gap: 6px; }
+.publish-actions > button,
+.publish-actions > .button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+.publish-actions > .primary {
+  min-height: 38px;
+  padding-inline: 18px;
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgba(23, 105, 232, .18);
+}
 .file-button { position: relative; overflow: hidden; }
 .file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.more-button { border-radius: 10px; }
+.more-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 13px;
+  background: var(--surface-soft);
+  color: #66728a;
+  font-size: 18px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+.more-button:hover,
+.more-button[aria-expanded="true"] {
+  border-color: #c8d3e3;
+  background: #eef4ff;
+  color: var(--primary);
+}
 .more-menu {
   position: absolute;
   z-index: 20;
-  top: 48px;
+  top: 43px;
   right: 0;
-  width: 165px;
-  padding: 7px;
+  width: 148px;
+  padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: white;
-  box-shadow: var(--shadow);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 18px 42px rgba(31, 45, 72, .14);
+  backdrop-filter: blur(16px);
 }
-.more-menu button { width: 100%; justify-content: flex-start; border: 0; background: transparent; }
+.more-menu button {
+  width: 100%;
+  min-height: 38px;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  padding: 0 13px;
+  font-size: 14px;
+}
+.more-menu button:hover { background: var(--surface-soft); }
+.more-menu button.danger:hover { background: #fff0f2; }
 
 .editor-form { min-height: calc(100vh - 160px); display: flex; flex-direction: column; }
 .summary-input { min-height: 65px; padding: 18px 24px 8px; border: 0; border-radius: 0; box-shadow: none; resize: none; color: var(--muted); font-size: 15px; }

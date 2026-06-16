@@ -56,6 +56,16 @@ function clearAutosave() {
 function closeMoreActions() {
   const menu = $("#moreActionsMenu");
   if (menu) menu.hidden = true;
+  const button = $("#moreActionsButton");
+  if (button) button.setAttribute("aria-expanded", "false");
+}
+
+function toggleMoreActions() {
+  const menu = $("#moreActionsMenu");
+  const button = $("#moreActionsButton");
+  const nextOpen = menu.hidden;
+  menu.hidden = !nextOpen;
+  button.setAttribute("aria-expanded", String(nextOpen));
 }
 
 function clearPendingDelete() {
@@ -683,6 +693,9 @@ function insertAtSelection(text, wrap = false) {
 
 function bindEvents() {
   document.addEventListener("click", async (event) => {
+    if (!event.target.closest("#moreActionsMenu") && !event.target.closest("#moreActionsButton")) {
+      closeMoreActions();
+    }
     const target = event.target.closest("button");
     if (!target) return;
     try {
@@ -787,7 +800,10 @@ function bindEvents() {
   $("#deleteArticleButton").addEventListener("click", (event) =>
     runAction(event.currentTarget, translate("updating"), deleteArticle, translate("updateSuccess")));
   $("#moreActionsButton").addEventListener("click", () => {
-    $("#moreActionsMenu").hidden = !$("#moreActionsMenu").hidden;
+    toggleMoreActions();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMoreActions();
   });
   $("#insertImageButton").addEventListener("click", () => {
     $("#assetDrawer").hidden = !$("#assetDrawer").hidden;
