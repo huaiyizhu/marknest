@@ -8,6 +8,8 @@ const state = {
   unresolvedImages: [],
   selectedArticleId: null,
   editingArticleId: null,
+  readerFilter: "recent",
+  workspaceFilter: "recent",
   locale: MarknestI18n.normalizeLocale(localStorage.getItem("marknest-locale") || navigator.language)
 };
 
@@ -267,14 +269,34 @@ function filteredArticles(source) {
   );
 }
 
+function filterByStatus(source, filter) {
+  if (filter === "drafts") return source.filter((article) => article.status !== "published");
+  if (filter === "published") return source.filter((article) => article.status === "published");
+  return source;
+}
+
+function renderFilterTabs(scope) {
+  const activeFilter = scope === "workspace" ? state.workspaceFilter : state.readerFilter;
+  $$(`[data-tab-scope="${scope}"]`).forEach((button) => {
+    const active = button.dataset.tabFilter === activeFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+}
+
 function renderArticleList() {
-  const articles = filteredArticles(state.articles);
+  renderFilterTabs("reader");
+  const source = state.readerFilter === "drafts" ? state.myArticles : state.articles;
+  const articles = filteredArticles(filterByStatus(source, state.readerFilter));
+  if (!articles.some((article) => article.id === state.selectedArticleId)) {
+    state.selectedArticleId = null;
+  }
   $("#articleList").innerHTML = articles.map((article) => `
     <button class="article-row ${article.id === state.selectedArticleId ? "active" : ""}" data-select-article="${article.id}">
       <strong>${escapeHtml(article.title)}</strong>
       <span>${escapeHtml(article.category)} · ${article.view_count} ${translate("metricViews")}</span>
     </button>
-  `).join("") || `<p class="empty-state">${translate("noArticleMatches")}</p>`;
+  `).join("") || `<p class="empty-state">${state.readerFilter === "drafts" && !state.currentUser ? translate("signInRequired") : translate("noArticleMatches")}</p>`;
 }
 
 async function selectArticle(id) {
@@ -514,11 +536,12 @@ async function uploadImageFiles(files) {
 
 function renderWorkspaceArticles() {
   const container = $("#workspaceArticles");
+  renderFilterTabs("workspace");
   if (!state.currentUser) {
     container.innerHTML = `<span class="empty-state">${translate("signInRequired")}</span>`;
     return;
   }
-  container.innerHTML = filteredArticles(state.myArticles).map((article) => `
+  container.innerHTML = filteredArticles(filterByStatus(state.myArticles, state.workspaceFilter)).map((article) => `
     <button data-edit="${article.id}" class="${article.id === state.editingArticleId ? "active" : ""}">
       <strong>${escapeHtml(article.title)}</strong>
       <small>● ${escapeHtml(article.status)} · ${new Date(article.updated_at).toLocaleDateString()}</small>
@@ -667,6 +690,15 @@ function bindEvents() {
         await runAction(target, translate("processing"), () => signIn(target.dataset.signin));
       } else if (target.id === "signOutButton") {
         await runAction(target, translate("processing"), signOut);
+      } else if (target.dataset.tabScope) {
+        if (target.dataset.tabScope === "workspace") {
+          state.workspaceFilter = target.dataset.tabFilter || "recent";
+          renderWorkspaceArticles();
+        } else {
+          state.readerFilter = target.dataset.tabFilter || "recent";
+          renderArticleList();
+          renderArticleDetail();
+        }
       } else if (target.dataset.view) {
         showView(target.dataset.view);
         if (target.dataset.view === "admin") {

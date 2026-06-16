@@ -62,10 +62,10 @@
                 <h2 data-i18n="readerTitle">已发布文章</h2>
               </div>
             </div>
-            <div class="library-tabs">
-              <button class="active" data-i18n="recent">最近</button>
-              <button data-i18n="drafts">草稿</button>
-              <button data-i18n="published">已发布</button>
+            <div class="library-tabs" role="tablist" aria-label="Article filters">
+              <button class="active" type="button" role="tab" aria-selected="true" data-tab-scope="reader" data-tab-filter="recent" data-i18n="recent">最近</button>
+              <button type="button" role="tab" aria-selected="false" data-tab-scope="reader" data-tab-filter="drafts" data-i18n="drafts">草稿</button>
+              <button type="button" role="tab" aria-selected="false" data-tab-scope="reader" data-tab-filter="published" data-i18n="published">已发布</button>
             </div>
             <div class="article-list" id="articleList"></div>
           </aside>
@@ -79,10 +79,10 @@
             <button class="primary create-button" id="newArticleButton" type="button">
               <span>＋</span><span data-i18n="newArticle">新建文章</span>
             </button>
-            <div class="library-tabs">
-              <button class="active" data-i18n="recent">最近</button>
-              <button data-i18n="drafts">草稿</button>
-              <button data-i18n="published">已发布</button>
+            <div class="library-tabs" role="tablist" aria-label="Workspace filters">
+              <button class="active" type="button" role="tab" aria-selected="true" data-tab-scope="workspace" data-tab-filter="recent" data-i18n="recent">最近</button>
+              <button type="button" role="tab" aria-selected="false" data-tab-scope="workspace" data-tab-filter="drafts" data-i18n="drafts">草稿</button>
+              <button type="button" role="tab" aria-selected="false" data-tab-scope="workspace" data-tab-filter="published" data-i18n="published">已发布</button>
             </div>
             <div class="workspace-articles" id="workspaceArticles"></div>
           </aside>
