@@ -13,9 +13,8 @@ Marknest production now uses Azure Front Door Standard in front of the Azure App
 
 ## Routing Policy
 
-- `/`: forwards to App Service over HTTPS with Front Door caching and compression enabled. The origin serves `index.html` with a short 5-minute cache lifetime.
 - `/src/*`, `/node_modules/*`, `/uploads/*`: forwards to App Service over HTTPS with Front Door caching and compression enabled.
-- `/api/*`, `/.auth/*`: forwards to App Service over HTTPS, no Front Door caching.
+- `/` and `/*`: handled by the `application` route, forwarded to App Service over HTTPS with no Front Door caching. This serves the app shell, `/api/*`, `/.auth/*`, and any future app routes.
 - HTTP requests are redirected to HTTPS.
 - Origin Host header is `blog.huaiyiz.com` so app authentication and generated public URLs stay on the final custom domain.
 
