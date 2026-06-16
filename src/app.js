@@ -89,6 +89,24 @@ function syncArticle(article) {
   }
 }
 
+function articlePath(article) {
+  return `/articles/${encodeURIComponent(article.slug || article.id)}`;
+}
+
+function articleIdentifierFromLocation() {
+  const pathMatch = location.pathname.match(/^\/articles\/([^/?#]+)\/?$/);
+  if (pathMatch) return decodeURIComponent(pathMatch[1]);
+  const hashMatch = location.hash.match(/^#article-(.+)$/);
+  return hashMatch ? decodeURIComponent(hashMatch[1]) : null;
+}
+
+function setArticleUrl(article, replace = false) {
+  if (!article) return;
+  const nextUrl = articlePath(article);
+  if (location.pathname === nextUrl && !location.hash) return;
+  history[replace ? "replaceState" : "pushState"]({ articleId: article.id }, "", nextUrl);
+}
+
 function beginOperation(message) {
   activeOperations += 1;
   clearTimeout(progressTimer);
@@ -214,6 +232,19 @@ async function loadMyArticles() {
     : [];
 }
 
+async function loadLinkedArticle() {
+  const identifier = articleIdentifierFromLocation();
+  if (!identifier) return false;
+  const article = (await MarknestApi.request(`/api/articles/${encodeURIComponent(identifier)}`)).article;
+  const index = state.articles.findIndex((item) => item.id === article.id);
+  if (index >= 0) state.articles[index] = article;
+  else state.articles.unshift(article);
+  state.readerFilter = "recent";
+  await selectArticle(article.id, { skipUrlUpdate: true });
+  if (location.hash) setArticleUrl(article, true);
+  return true;
+}
+
 async function loadArticleAssets() {
   if (!state.currentUser || !state.editingArticleId) {
     state.assets = [];
@@ -309,7 +340,7 @@ function renderArticleList() {
   `).join("") || `<p class="empty-state">${state.readerFilter === "drafts" && !state.currentUser ? translate("signInRequired") : translate("noArticleMatches")}</p>`;
 }
 
-async function selectArticle(id) {
+async function selectArticle(id, options = {}) {
   state.selectedArticleId = id;
   renderArticleList();
   $("#articleDetail").innerHTML = `<div class="content-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div>`;
@@ -323,6 +354,7 @@ async function selectArticle(id) {
   state.commentsByArticle[id] = commentsResult.comments || [];
   renderArticleDetail();
   renderArticleList();
+  if (!options.skipUrlUpdate) setArticleUrl(article);
 }
 
 function renderArticleDetail() {
@@ -845,6 +877,15 @@ function bindEvents() {
       showError(error);
     }
   });
+  window.addEventListener("popstate", () => {
+    loadLinkedArticle().then((loaded) => {
+      if (!loaded && location.pathname === "/") {
+        state.selectedArticleId = state.articles[0]?.id || null;
+        renderArticleList();
+        renderArticleDetail();
+      }
+    }).catch(showError);
+  });
 }
 
 async function initialize() {
@@ -857,7 +898,8 @@ async function initialize() {
     await Promise.all([loadAuthProviders(), refreshSession()]);
     await Promise.all([loadArticles(), loadMyArticles()]);
     render();
-    if (state.selectedArticleId) {
+    const loadedLinkedArticle = await loadLinkedArticle();
+    if (!loadedLinkedArticle && state.selectedArticleId) {
       await selectArticle(state.selectedArticleId);
     }
   } catch (error) {

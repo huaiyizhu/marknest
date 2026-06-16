@@ -134,6 +134,20 @@ function getArticle(db, id) {
   return serializeArticle(db.prepare(`${articleProjection()} WHERE a.id = ?`).get(id));
 }
 
+function getArticleBySlugOrId(db, value) {
+  return serializeArticle(db.prepare(`${articleProjection()} WHERE a.slug = ? OR a.id = ?`).get(value, value));
+}
+
+function publicBaseUrl(req) {
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+  const protocol = req.headers["x-forwarded-proto"] || (req.socket.encrypted ? "https" : "http");
+  return `${protocol}://${req.headers.host || "localhost:4173"}`;
+}
+
+function articleUrl(req, article) {
+  return `${publicBaseUrl(req)}/articles/${encodeURIComponent(article.slug || article.id)}`;
+}
+
 function publicArticle(row) {
   if (!row) return row;
   return {
@@ -364,7 +378,7 @@ function createApp(db, options = {}) {
 
       const articleMatch = pathname.match(/^\/api\/articles\/([^/]+)$/);
       if (articleMatch && method === "GET") {
-        const article = getArticle(db, articleMatch[1]);
+        const article = getArticleBySlugOrId(db, articleMatch[1]);
         if (!article) return json(res, 404, { error: "Article not found" });
         const user = currentUser(req, db);
         if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
@@ -394,7 +408,7 @@ function createApp(db, options = {}) {
         db.prepare(
           `UPDATE articles SET title = ?, slug = ?, summary = ?, markdown_content = ?, cover_image_url = ?,
            visibility = ?, tags = ?, category = ?, updated_at = ? WHERE id = ?`
-        ).run(next.title, uniqueSlug(db, next.title, article.id), next.summary, next.markdown, next.cover, next.visibility,
+        ).run(next.title, article.status === "draft" ? uniqueSlug(db, next.title, article.id) : article.slug, next.summary, next.markdown, next.cover, next.visibility,
           JSON.stringify(next.tags), next.category, new Date().toISOString(), article.id);
         return json(res, 200, { article: getArticle(db, article.id) });
       }
@@ -477,9 +491,9 @@ function createApp(db, options = {}) {
       if (shareMatch && method === "POST") {
         const user = currentUser(req, db);
         const body = await readJson(req);
-        const article = getArticle(db, shareMatch[1]);
+        const article = getArticleBySlugOrId(db, shareMatch[1]);
         if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
-        const shareUrl = `${process.env.PUBLIC_BASE_URL || "http://localhost:4173"}/#article-${article.id}`;
+        const shareUrl = articleUrl(req, article);
         db.prepare("INSERT INTO shares (id, article_id, user_id, platform, share_url, created_at) VALUES (?, ?, ?, ?, ?, ?)")
           .run(crypto.randomUUID(), article.id, user?.id || null, body.platform || "copy", shareUrl, new Date().toISOString());
         return json(res, 201, { shareUrl, text: `${article.title}\n${article.summary}\n${shareUrl}` });
@@ -487,9 +501,9 @@ function createApp(db, options = {}) {
 
       const shareCardMatch = pathname.match(/^\/api\/articles\/([^/]+)\/share-card$/);
       if (shareCardMatch && method === "GET") {
-        const article = getArticle(db, shareCardMatch[1]);
+        const article = getArticleBySlugOrId(db, shareCardMatch[1]);
         if (!canRead(currentUser(req, db), article)) return json(res, 404, { error: "Article not found" });
-        const shareUrl = `${process.env.PUBLIC_BASE_URL || "http://localhost:4173"}/#article-${article.id}`;
+        const shareUrl = articleUrl(req, article);
         return json(res, 200, {
           title: article.title,
           summary: article.summary,
@@ -500,9 +514,9 @@ function createApp(db, options = {}) {
 
       const qrMatch = pathname.match(/^\/api\/articles\/([^/]+)\/share-qrcode$/);
       if (qrMatch && method === "GET") {
-        const article = getArticle(db, qrMatch[1]);
+        const article = getArticleBySlugOrId(db, qrMatch[1]);
         if (!canRead(currentUser(req, db), article)) return json(res, 404, { error: "Article not found" });
-        const shareUrl = `${process.env.PUBLIC_BASE_URL || "http://localhost:4173"}/#article-${article.id}`;
+        const shareUrl = articleUrl(req, article);
         const svg = await QRCode.toString(shareUrl, { type: "svg", margin: 1, width: 320 });
         res.writeHead(200, { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "public, max-age=300" });
         return res.end(svg);
@@ -556,6 +570,9 @@ function createApp(db, options = {}) {
       }
 
       if (pathname.startsWith("/api/")) return json(res, 404, { error: "API route not found" });
+      if (pathname.startsWith("/articles/")) {
+        if (staticFile(req, res, "/", uploadsDir)) return;
+      }
       if (!staticFile(req, res, pathname, uploadsDir)) json(res, 404, { error: "Not found" });
     } catch (error) {
       json(res, error.status || 500, { error: error.message || "Internal server error" });

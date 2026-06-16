@@ -184,6 +184,20 @@ async function run() {
   });
   assert.equal(published.status, 200);
   assert.equal(published.body.article.status, "published");
+  const articleSlug = published.body.article.slug;
+  assert.equal(articleSlug, "api-article");
+
+  const articleBySlug = await request(`/api/articles/${articleSlug}`);
+  assert.equal(articleBySlug.status, 200);
+  assert.equal(articleBySlug.body.article.id, articleId);
+
+  const renamedPublished = await request(`/api/articles/${articleId}`, {
+    method: "PUT",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ title: "Renamed API Article" })
+  });
+  assert.equal(renamedPublished.status, 200);
+  assert.equal(renamedPublished.body.article.slug, articleSlug);
 
   const madePrivate = await request(`/api/articles/${articleId}`, {
     method: "PUT",
@@ -213,7 +227,7 @@ async function run() {
   });
   assert.equal(compressedArticle.status, 200);
   assert.equal(compressedArticle.headers.get("content-encoding"), "gzip");
-  assert.equal((await compressedArticle.json()).article.title, "API Article");
+  assert.equal((await compressedArticle.json()).article.title, "Renamed API Article");
 
   const cachedScript = await fetch(`${baseUrl}/src/app.js`, {
     headers: { "accept-encoding": "gzip" }
@@ -252,13 +266,15 @@ async function run() {
     body: JSON.stringify({ platform: "wechat" })
   });
   assert.equal(shared.status, 201);
-  assert.match(shared.body.text, /API Article/);
+  assert.match(shared.body.text, /Renamed API Article/);
+  assert.match(shared.body.shareUrl, /\/articles\/api-article$/);
 
-  const shareCard = await request(`/api/articles/${articleId}/share-card`);
+  const shareCard = await request(`/api/articles/${articleSlug}/share-card`);
   assert.equal(shareCard.status, 200);
-  assert.equal(shareCard.body.title, "API Article");
+  assert.equal(shareCard.body.title, "Renamed API Article");
+  assert.match(shareCard.body.shareUrl, /\/articles\/api-article$/);
 
-  const qrResponse = await fetch(`${baseUrl}/api/articles/${articleId}/share-qrcode`);
+  const qrResponse = await fetch(`${baseUrl}/api/articles/${articleSlug}/share-qrcode`);
   assert.equal(qrResponse.status, 200);
   assert.match(qrResponse.headers.get("content-type"), /image\/svg\+xml/);
   assert.match(await qrResponse.text(), /<svg/);
