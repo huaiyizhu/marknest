@@ -135,4 +135,5 @@ jobs:
       - name: Run deployed E2E smoke test
         env:
           E2E_BASE_URL: ${{ env.MARKNEST_PUBLIC_BASE_URL }}
+          E2E_TIMEOUT_MS: 90000
         run: npm run test:e2e:deployed

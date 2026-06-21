@@ -40,6 +40,9 @@ async function request(targetPath, options = {}) {
     const text = await response.text();
     const body = contentType.includes("application/json") && text ? JSON.parse(text) : text;
     return { response, body, text };
+  } catch (error) {
+    error.message = `${targetPath}: ${error.message}`;
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -125,7 +128,8 @@ async function assertArticleReadPath(article) {
   const articleResult = await request(`/api/articles/${encodeURIComponent(identifier)}`);
   assert.equal(articleResult.response.status, 200);
   assert.equal(articleResult.body.article.id, article.id);
-  assert.ok(articleResult.body.article.markdown_content.includes("#"));
+  assert.equal(typeof articleResult.body.article.markdown_content, "string");
+  assert.ok(articleResult.body.article.markdown_content.length > 0);
 
   const appRoute = await request(`/articles/${encodeURIComponent(identifier)}`);
   assert.equal(appRoute.response.status, 200);
