@@ -28,3 +28,6 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Run local E2E smoke test
+        run: npm run test:e2e

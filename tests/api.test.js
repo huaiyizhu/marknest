@@ -207,6 +207,31 @@ async function run() {
   assert.equal(articleBySlug.status, 200);
   assert.equal(articleBySlug.body.article.id, articleId);
 
+  const unicodeCreated = await request("/api/articles", {
+    method: "POST",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({
+      title: "中文测试文章",
+      summary: "Unicode slug regression test.",
+      markdown_content: "# 中文测试文章\n\n你好。",
+      category: "Testing",
+      tags: ["unicode"]
+    })
+  });
+  assert.equal(unicodeCreated.status, 201);
+  const unicodePublished = await request(`/api/articles/${unicodeCreated.body.article.id}/publish`, {
+    method: "POST",
+    headers: headers("demo-writer", "google")
+  });
+  assert.equal(unicodePublished.status, 200);
+  const unicodeSlug = encodeURIComponent(unicodePublished.body.article.slug);
+  const unicodeBySlug = await request(`/api/articles/${unicodeSlug}`);
+  assert.equal(unicodeBySlug.status, 200);
+  assert.equal(unicodeBySlug.body.article.id, unicodeCreated.body.article.id);
+  const unicodeShareCard = await request(`/api/articles/${unicodeSlug}/share-card`);
+  assert.equal(unicodeShareCard.status, 200);
+  assert.match(unicodeShareCard.body.shareUrl, /\/articles\//);
+
   const renamedPublished = await request(`/api/articles/${articleId}`, {
     method: "PUT",
     headers: headers("demo-writer", "google"),
@@ -230,7 +255,9 @@ async function run() {
 
   const listed = await request("/api/articles");
   assert.equal(listed.status, 200);
-  assert.equal(listed.body.articles.length, 1);
+  assert.ok(listed.body.articles.length >= 2);
+  assert.ok(listed.body.articles.some((article) => article.id === articleId));
+  assert.ok(listed.body.articles.some((article) => article.id === unicodeCreated.body.article.id));
   assert.equal("markdown_content" in listed.body.articles[0], false);
 
   await request(`/api/articles/${articleId}`, {
@@ -311,7 +338,7 @@ async function run() {
     headers: headers("demo-admin")
   });
   assert.equal(dashboard.status, 200);
-  assert.equal(dashboard.body.published, 1);
+  assert.equal(dashboard.body.published, 2);
   assert.equal(dashboard.body.comments, 1);
 
   const unlisted = await request(`/api/admin/articles/${articleId}/status`, {

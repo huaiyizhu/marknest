@@ -131,3 +131,8 @@ jobs:
           done
           echo "Deployment health check failed: $health_url"
           exit 1
+
+      - name: Run deployed E2E smoke test
+        env:
+          E2E_BASE_URL: ${{ env.MARKNEST_PUBLIC_BASE_URL }}
+        run: npm run test:e2e:deployed

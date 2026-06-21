@@ -97,6 +97,14 @@ function replaceImageReferences(markdown, sourcePath, publicUrl) {
   );
 }
 
+function decodePathSegment(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function slugify(value) {
   const slug = String(value || "")
     .toLowerCase()
@@ -382,7 +390,7 @@ function createApp(db, options = {}) {
 
       const articleMatch = pathname.match(/^\/api\/articles\/([^/]+)$/);
       if (articleMatch && method === "GET") {
-        const article = getArticleBySlugOrId(db, articleMatch[1]);
+        const article = getArticleBySlugOrId(db, decodePathSegment(articleMatch[1]));
         if (!article) return json(res, 404, { error: "Article not found" });
         const user = currentUser(req, db);
         if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
@@ -499,7 +507,7 @@ function createApp(db, options = {}) {
       if (shareMatch && method === "POST") {
         const user = currentUser(req, db);
         const body = await readJson(req);
-        const article = getArticleBySlugOrId(db, shareMatch[1]);
+        const article = getArticleBySlugOrId(db, decodePathSegment(shareMatch[1]));
         if (!canRead(user, article)) return json(res, 404, { error: "Article not found" });
         const shareUrl = articleUrl(req, article);
         db.prepare("INSERT INTO shares (id, article_id, user_id, platform, share_url, created_at) VALUES (?, ?, ?, ?, ?, ?)")
@@ -509,7 +517,7 @@ function createApp(db, options = {}) {
 
       const shareCardMatch = pathname.match(/^\/api\/articles\/([^/]+)\/share-card$/);
       if (shareCardMatch && method === "GET") {
-        const article = getArticleBySlugOrId(db, shareCardMatch[1]);
+        const article = getArticleBySlugOrId(db, decodePathSegment(shareCardMatch[1]));
         if (!canRead(currentUser(req, db), article)) return json(res, 404, { error: "Article not found" });
         const shareUrl = articleUrl(req, article);
         return json(res, 200, {
@@ -522,7 +530,7 @@ function createApp(db, options = {}) {
 
       const qrMatch = pathname.match(/^\/api\/articles\/([^/]+)\/share-qrcode$/);
       if (qrMatch && method === "GET") {
-        const article = getArticleBySlugOrId(db, qrMatch[1]);
+        const article = getArticleBySlugOrId(db, decodePathSegment(qrMatch[1]));
         if (!canRead(currentUser(req, db), article)) return json(res, 404, { error: "Article not found" });
         const shareUrl = articleUrl(req, article);
         const svg = await QRCode.toString(shareUrl, { type: "svg", margin: 1, width: 320 });
