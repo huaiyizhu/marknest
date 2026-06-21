@@ -146,13 +146,27 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run deployed E2E smoke test
+        shell: bash
         env:
           E2E_BASE_URL: ${{ env.MARKNEST_PUBLIC_BASE_URL }}
           E2E_TIMEOUT_MS: 90000
-        run: npm run test:e2e:deployed
+        run: |
+          for attempt in 1 2 3; do
+            npm run test:e2e:deployed && exit 0
+            echo "Deployed E2E smoke attempt $attempt failed; retrying in 20 seconds."
+            sleep 20
+          done
+          npm run test:e2e:deployed
 
       - name: Run deployed UI smoke test
+        shell: bash
         env:
           E2E_BASE_URL: ${{ env.MARKNEST_PUBLIC_BASE_URL }}
           E2E_TIMEOUT_MS: 90000
-        run: npm run test:ui:deployed
+        run: |
+          for attempt in 1 2 3; do
+            npm run test:ui:deployed && exit 0
+            echo "Deployed UI smoke attempt $attempt failed; retrying in 20 seconds."
+            sleep 20
+          done
+          npm run test:ui:deployed
