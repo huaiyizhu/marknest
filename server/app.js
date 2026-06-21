@@ -15,6 +15,7 @@ const imageTypes = {
   "image/webp": ".webp",
   "image/gif": ".gif"
 };
+const stylePresets = new Set(["social", "minimal", "technical", "newsletter", "cover"]);
 
 function acceptsGzip(req) {
   return /\bgzip\b/.test(String(req?.headers?.["accept-encoding"] || ""));
@@ -278,14 +279,17 @@ function createApp(db, options = {}) {
         if (body.visibility && !["public", "unlisted", "private"].includes(body.visibility)) {
           return json(res, 400, { error: "Invalid visibility" });
         }
+        if (body.style_preset && !stylePresets.has(body.style_preset)) {
+          return json(res, 400, { error: "Invalid style preset" });
+        }
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         db.prepare(
           `INSERT INTO articles
-           (id, author_id, title, slug, summary, markdown_content, cover_image_url, status, visibility, tags, category, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (id, author_id, title, slug, summary, markdown_content, cover_image_url, style_preset, status, visibility, tags, category, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(id, user.id, body.title.trim(), uniqueSlug(db, body.title), body.summary || "", body.markdown_content || "",
-          body.cover_image_url || null, "draft", body.visibility || "public", JSON.stringify(body.tags || []),
+          body.cover_image_url || null, body.style_preset || "social", "draft", body.visibility || "public", JSON.stringify(body.tags || []),
           body.category || "General", now, now);
         return json(res, 201, { article: getArticle(db, id) });
       }
@@ -396,19 +400,23 @@ function createApp(db, options = {}) {
         if (body.visibility && !["public", "unlisted", "private"].includes(body.visibility)) {
           return json(res, 400, { error: "Invalid visibility" });
         }
+        if (body.style_preset && !stylePresets.has(body.style_preset)) {
+          return json(res, 400, { error: "Invalid style preset" });
+        }
         const next = {
           title: body.title?.trim() ?? article.title,
           summary: body.summary ?? article.summary,
           markdown: body.markdown_content ?? article.markdown_content,
           cover: body.cover_image_url ?? article.cover_image_url,
+          stylePreset: body.style_preset ?? article.style_preset ?? "social",
           visibility: body.visibility ?? article.visibility,
           tags: body.tags ?? article.tags,
           category: body.category ?? article.category
         };
         db.prepare(
-          `UPDATE articles SET title = ?, slug = ?, summary = ?, markdown_content = ?, cover_image_url = ?,
+          `UPDATE articles SET title = ?, slug = ?, summary = ?, markdown_content = ?, cover_image_url = ?, style_preset = ?,
            visibility = ?, tags = ?, category = ?, updated_at = ? WHERE id = ?`
-        ).run(next.title, article.status === "draft" ? uniqueSlug(db, next.title, article.id) : article.slug, next.summary, next.markdown, next.cover, next.visibility,
+        ).run(next.title, article.status === "draft" ? uniqueSlug(db, next.title, article.id) : article.slug, next.summary, next.markdown, next.cover, next.stylePreset, next.visibility,
           JSON.stringify(next.tags), next.category, new Date().toISOString(), article.id);
         return json(res, 200, { article: getArticle(db, article.id) });
       }

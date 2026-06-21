@@ -10,6 +10,8 @@ const state = {
   editingArticleId: null,
   readerFilter: "recent",
   workspaceFilter: "recent",
+  primaryNavExpanded: localStorage.getItem("marknest-primary-nav-expanded") === "true",
+  secondarySidebarCollapsed: localStorage.getItem("marknest-secondary-sidebar-collapsed") === "true",
   locale: MarknestI18n.normalizeLocale(localStorage.getItem("marknest-locale") || navigator.language)
 };
 
@@ -60,12 +62,49 @@ function closeMoreActions() {
   if (button) button.setAttribute("aria-expanded", "false");
 }
 
+function closeAccountMenu() {
+  const menu = $("#accountMenu");
+  if (menu) menu.hidden = true;
+  const button = $("#accountMenuButton");
+  if (button) button.setAttribute("aria-expanded", "false");
+}
+
+function toggleAccountMenu() {
+  const menu = $("#accountMenu");
+  const button = $("#accountMenuButton");
+  if (!menu || !button) return;
+  const nextOpen = menu.hidden;
+  menu.hidden = !nextOpen;
+  button.setAttribute("aria-expanded", String(nextOpen));
+}
+
 function toggleMoreActions() {
   const menu = $("#moreActionsMenu");
   const button = $("#moreActionsButton");
   const nextOpen = menu.hidden;
   menu.hidden = !nextOpen;
   button.setAttribute("aria-expanded", String(nextOpen));
+}
+
+function stylePresetClass(value) {
+  const preset = ["social", "minimal", "technical", "newsletter", "cover"].includes(value) ? value : "social";
+  return `article-style-${preset}`;
+}
+
+function applyLayoutState() {
+  document.body.classList.toggle("primary-nav-expanded", state.primaryNavExpanded);
+  document.body.classList.toggle("secondary-sidebar-collapsed", state.secondarySidebarCollapsed);
+  const navToggle = $("#togglePrimaryNavButton");
+  if (navToggle) {
+    navToggle.setAttribute("aria-pressed", String(state.primaryNavExpanded));
+    navToggle.querySelector("span").textContent = state.primaryNavExpanded ? translate("collapseNav") : translate("toggleNav");
+  }
+  const sidebarToggle = $("#toggleSecondarySidebarButton");
+  if (sidebarToggle) {
+    sidebarToggle.setAttribute("aria-pressed", String(state.secondarySidebarCollapsed));
+    sidebarToggle.setAttribute("title", state.secondarySidebarCollapsed ? translate("expandSidebar") : translate("toggleSidebar"));
+    sidebarToggle.setAttribute("aria-label", state.secondarySidebarCollapsed ? translate("expandSidebar") : translate("toggleSidebar"));
+  }
 }
 
 function clearPendingDelete() {
@@ -197,6 +236,9 @@ function renderStaticTranslations() {
   $$("[data-i18n-placeholder]").forEach((element) => {
     element.placeholder = translate(element.dataset.i18nPlaceholder);
   });
+  $$("[data-i18n-title]").forEach((element) => {
+    element.title = translate(element.dataset.i18nTitle);
+  });
   $$("[data-label-key]").forEach((element) => {
     element.setAttribute("aria-label", translate(element.dataset.labelKey));
   });
@@ -293,12 +335,28 @@ function renderAuth() {
     `).join("");
     return;
   }
+  const roleLabel = translate(state.currentUser.role === "admin" ? "roleAdmin" : "roleUser");
   panel.innerHTML = `
-    <div class="user-chip" title="${escapeHtml(state.currentUser.username)}">
-      <strong>${escapeHtml(initials(state.currentUser.username))}</strong>
-      <span>${escapeHtml(state.currentUser.email || state.currentUser.auth_provider)}</span>
+    <div class="account-popover">
+      <button class="user-chip" id="accountMenuButton" type="button" aria-label="${escapeHtml(translate("accountDetails"))}" aria-expanded="false" aria-controls="accountMenu" title="${escapeHtml(state.currentUser.username)}">
+        <strong>${escapeHtml(initials(state.currentUser.username))}</strong>
+      </button>
+      <div class="account-menu" id="accountMenu" hidden>
+        <div class="account-card">
+          <span class="account-avatar">${escapeHtml(initials(state.currentUser.username))}</span>
+          <div>
+            <strong>${escapeHtml(state.currentUser.username)}</strong>
+            <span>${escapeHtml(state.currentUser.email || translate("accountEmailMissing"))}</span>
+          </div>
+        </div>
+        <dl>
+          <div><dt>${translate("accountProvider")}</dt><dd>${escapeHtml(state.currentUser.auth_provider)}</dd></div>
+          <div><dt>${translate("accountRole")}</dt><dd>${escapeHtml(roleLabel)}</dd></div>
+          <div><dt>${translate("accountLocale")}</dt><dd>${escapeHtml(state.currentUser.preferred_locale || state.locale)}</dd></div>
+        </dl>
+        <button id="signOutButton" class="account-signout" type="button">${translate("signOut")}</button>
+      </div>
     </div>
-    <button id="signOutButton">${translate("signOut")}</button>
   `;
 }
 
@@ -360,6 +418,7 @@ async function selectArticle(id, options = {}) {
 function renderArticleDetail() {
   const article = state.articles.find((item) => item.id === state.selectedArticleId);
   const detail = $("#articleDetail");
+  detail.className = `article-detail social-article ${stylePresetClass(article?.style_preset)}`;
   if (!article) {
     detail.innerHTML = `<p class="empty-state">${translate("selectArticle")}</p>`;
     return;
@@ -376,7 +435,7 @@ function renderArticleDetail() {
     <header class="preview-author">
       <span class="avatar">${escapeHtml(initials(article.author_name))}</span>
       <div><strong>${escapeHtml(article.author_name)}</strong><span>${escapeHtml(article.published_at || translate("draft"))}</span></div>
-      <button class="icon-button" aria-label="More">•••</button>
+      <span class="icon-button static-icon" aria-hidden="true">•••</span>
     </header>
     <h2>${escapeHtml(article.title)}</h2>
     <p>${escapeHtml(article.summary)}</p>
@@ -414,6 +473,7 @@ function resetEditor() {
   $("#categoryInput").value = "";
   $("#tagsInput").value = "";
   $("#visibilityInput").value = "public";
+  $("#stylePresetInput").value = "social";
   $("#coverInput").value = "";
   $("#markdownInput").value = `# ${translate("untitled")}\n\n${translate("startWriting")}`;
   $("#draftStatus").textContent = translate("draft");
@@ -431,6 +491,7 @@ async function editArticle(id) {
   $("#categoryInput").value = article.category;
   $("#tagsInput").value = article.tags.join(", ");
   $("#visibilityInput").value = article.visibility;
+  $("#stylePresetInput").value = article.style_preset || "social";
   $("#coverInput").value = article.cover_image_url || "";
   $("#markdownInput").value = article.markdown_content;
   $("#draftStatus").textContent = article.status === "published" ? translate("published") : translate("draft");
@@ -448,6 +509,7 @@ function articlePayload() {
     tags: $("#tagsInput").value.split(",").map((tag) => tag.trim()).filter(Boolean),
     markdown_content: $("#markdownInput").value,
     visibility: $("#visibilityInput").value,
+    style_preset: $("#stylePresetInput").value,
     cover_image_url: $("#coverInput").value.trim() || null
   };
 }
@@ -504,6 +566,8 @@ function updatePreview(scheduleAutosave = true) {
   $("#previewSummary").textContent = payload.summary;
   $("#previewTags").innerHTML = payload.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
   $("#previewOutput").innerHTML = MarknestMarkdown.renderMarkdown(payload.markdown_content);
+  const previewPanel = $(".preview-panel");
+  if (previewPanel) previewPanel.className = `preview-panel social-article ${stylePresetClass(payload.style_preset)}`;
   const words = payload.markdown_content.replace(/[#>*_`\-[\]|]/g, " ").trim().split(/\s+/).filter(Boolean).length;
   $("#wordCount").textContent = `${words.toLocaleString()} ${state.locale === "zh-CN" ? "字" : "words"}`;
   $("#readingTime").textContent = state.locale === "zh-CN"
@@ -702,6 +766,7 @@ function showView(name) {
 
 async function render() {
   renderStaticTranslations();
+  applyLayoutState();
   renderAuth();
   renderArticleList();
   renderWorkspaceArticles();
@@ -728,14 +793,21 @@ function bindEvents() {
     if (!event.target.closest("#moreActionsMenu") && !event.target.closest("#moreActionsButton")) {
       closeMoreActions();
     }
+    if (!event.target.closest("#accountMenu") && !event.target.closest("#accountMenuButton")) {
+      closeAccountMenu();
+    }
     const target = event.target.closest("button");
     if (!target) return;
     try {
       if (target.dataset.signin) {
         await runAction(target, translate("processing"), () => signIn(target.dataset.signin));
+      } else if (target.id === "accountMenuButton") {
+        toggleAccountMenu();
       } else if (target.id === "signOutButton") {
         await runAction(target, translate("processing"), signOut);
       } else if (target.dataset.tabScope) {
+        closeMoreActions();
+        closeAccountMenu();
         if (target.dataset.tabScope === "workspace") {
           state.workspaceFilter = target.dataset.tabFilter || "recent";
           renderWorkspaceArticles();
@@ -745,6 +817,8 @@ function bindEvents() {
           renderArticleDetail();
         }
       } else if (target.dataset.view) {
+        closeMoreActions();
+        closeAccountMenu();
         showView(target.dataset.view);
         if (target.dataset.view === "admin") {
           await runAction(target, translate("loadingAdmin"), renderAdmin);
@@ -822,6 +896,16 @@ function bindEvents() {
     resetEditor();
     showView("workspace");
   });
+  $("#togglePrimaryNavButton").addEventListener("click", () => {
+    state.primaryNavExpanded = !state.primaryNavExpanded;
+    localStorage.setItem("marknest-primary-nav-expanded", String(state.primaryNavExpanded));
+    applyLayoutState();
+  });
+  $("#toggleSecondarySidebarButton").addEventListener("click", () => {
+    state.secondarySidebarCollapsed = !state.secondarySidebarCollapsed;
+    localStorage.setItem("marknest-secondary-sidebar-collapsed", String(state.secondarySidebarCollapsed));
+    applyLayoutState();
+  });
   $("#newArticleButton").addEventListener("click", () => requireUser() && resetEditor());
   $("#saveDraftButton").addEventListener("click", (event) =>
     runAction(event.currentTarget, translate("savingDraft"), () => saveArticle("draft"), translate("savedSuccess")));
@@ -835,7 +919,10 @@ function bindEvents() {
     toggleMoreActions();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMoreActions();
+    if (event.key === "Escape") {
+      closeMoreActions();
+      closeAccountMenu();
+    }
   });
   $("#insertImageButton").addEventListener("click", () => {
     $("#assetDrawer").hidden = !$("#assetDrawer").hidden;
@@ -891,6 +978,7 @@ function bindEvents() {
 async function initialize() {
   bindEvents();
   resetEditor();
+  applyLayoutState();
   render();
   showView("reader");
   beginOperation(translate("processing"));

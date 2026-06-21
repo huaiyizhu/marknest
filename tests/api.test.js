@@ -99,6 +99,7 @@ async function run() {
   });
   assert.equal(created.status, 201);
   assert.equal(created.body.article.status, "draft");
+  assert.equal(created.body.article.style_preset, "social");
   const articleId = created.body.article.id;
 
   const imageArticle = await request("/api/articles", {
@@ -177,6 +178,21 @@ async function run() {
     body: JSON.stringify({ visibility: "everyone" })
   });
   assert.equal(invalidVisibility.status, 400);
+
+  const invalidStylePreset = await request(`/api/articles/${articleId}`, {
+    method: "PUT",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ style_preset: "retro-admin" })
+  });
+  assert.equal(invalidStylePreset.status, 400);
+
+  const styledArticle = await request(`/api/articles/${articleId}`, {
+    method: "PUT",
+    headers: headers("demo-writer", "google"),
+    body: JSON.stringify({ style_preset: "technical" })
+  });
+  assert.equal(styledArticle.status, 200);
+  assert.equal(styledArticle.body.article.style_preset, "technical");
 
   const published = await request(`/api/articles/${articleId}/publish`, {
     method: "POST",

@@ -34,6 +34,7 @@ function createDatabase(filename = ":memory:") {
       summary TEXT NOT NULL DEFAULT '',
       markdown_content TEXT NOT NULL DEFAULT '',
       cover_image_url TEXT,
+      style_preset TEXT NOT NULL DEFAULT 'social',
       status TEXT NOT NULL DEFAULT 'draft',
       visibility TEXT NOT NULL DEFAULT 'public',
       tags TEXT NOT NULL DEFAULT '[]',
@@ -104,6 +105,11 @@ function createDatabase(filename = ":memory:") {
     CREATE INDEX IF NOT EXISTS idx_assets_article_status
       ON assets(article_id, status, created_at DESC);
   `);
+
+  const articleColumns = db.prepare("PRAGMA table_info(articles)").all().map((column) => column.name);
+  if (!articleColumns.includes("style_preset")) {
+    db.exec("ALTER TABLE articles ADD COLUMN style_preset TEXT NOT NULL DEFAULT 'social'");
+  }
   return db;
 }
 
@@ -113,7 +119,7 @@ function articleProjection(options = {}) {
     : "a.markdown_content,";
   return `
     SELECT a.id, a.author_id, a.title, a.slug, a.summary, ${content}
-      a.cover_image_url, a.status, a.visibility, a.tags, a.category,
+      a.cover_image_url, a.style_preset, a.status, a.visibility, a.tags, a.category,
       a.view_count, a.published_at, a.created_at, a.updated_at,
       u.username AS author_name,
       (SELECT COUNT(*) FROM likes l WHERE l.article_id = a.id) AS like_count,
