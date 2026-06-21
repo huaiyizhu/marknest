@@ -27,6 +27,22 @@ function devHeaders() {
   };
 }
 
+function appShellAssets(html) {
+  return Array.from(html.matchAll(/<(?:link|script)\b[^>]+(?:href|src)="([^"]+)"/g)).map((match) => match[1]);
+}
+
+async function assertAppShellAssets(html) {
+  const assets = appShellAssets(html);
+  assert.ok(assets.includes("/src/styles.css"));
+  assert.ok(assets.includes("/src/app.js"));
+  assert.ok(assets.includes("/node_modules/markdown-it/dist/markdown-it.min.js"));
+  for (const asset of assets) {
+    assert.ok(asset.startsWith("/"), `App shell asset must use an absolute path: ${asset}`);
+    const result = await request(asset);
+    assert.equal(result.response.status, 200, `Expected ${asset} to load`);
+  }
+}
+
 async function request(targetPath, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -95,6 +111,7 @@ async function assertCoreSurface() {
   assert.match(html.text, /id="stylePresetInput"/);
   assert.match(html.text, /id="togglePrimaryNavButton"/);
   assert.match(html.text, /id="toggleSecondarySidebarButton"/);
+  await assertAppShellAssets(html.text);
 
   const appJs = await request("/src/app.js");
   assert.equal(appJs.response.status, 200);
@@ -134,6 +151,7 @@ async function assertArticleReadPath(article) {
   const appRoute = await request(`/articles/${encodeURIComponent(identifier)}`);
   assert.equal(appRoute.response.status, 200);
   assert.match(appRoute.text, /<title>Marknest<\/title>/);
+  await assertAppShellAssets(appRoute.text);
 
   const shareCard = await request(`/api/articles/${encodeURIComponent(identifier)}/share-card`);
   assert.equal(shareCard.response.status, 200);

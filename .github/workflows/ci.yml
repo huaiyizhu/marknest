@@ -31,3 +31,9 @@ jobs:
 
       - name: Run local E2E smoke test
         run: npm run test:e2e
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run local UI smoke test
+        run: npm run test:ui

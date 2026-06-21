@@ -861,7 +861,9 @@ h1, h2, h3, p { margin-top: 0; }
   .brand { font-size: 20px; }
   .app-frame { grid-template-columns: 1fr; }
   body.primary-nav-expanded .app-frame { grid-template-columns: 1fr; }
-  .icon-rail { position: fixed; z-index: 25; top: auto; bottom: 0; width: 100%; height: 64px; padding: 8px 16px; border-top: 1px solid var(--line); border-right: 0; }
+  .topbar-actions { min-width: 0; max-width: calc(100vw - 76px); overflow: hidden; }
+  .auth-panel { min-width: 0; overflow: hidden; }
+  .icon-rail { position: fixed; z-index: 25; top: auto; right: 0; bottom: 0; left: 0; width: auto; height: 64px; padding: 8px 16px; border-top: 1px solid var(--line); border-right: 0; }
   .icon-rail nav { display: flex; justify-content: space-around; }
   .nav-item span, .rail-toggle { display: none !important; }
   body.primary-nav-expanded .nav-item { width: 46px; justify-content: center; padding: 0; }
@@ -881,6 +883,18 @@ h1, h2, h3, p { margin-top: 0; }
   .brand-mark { width: 38px; height: 38px; }
   .topbar-actions { gap: 6px; }
   .topbar-actions > .icon-button:not(.quick-create) { display: none; }
+  .auth-panel button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    font-size: 0;
+  }
+  .auth-panel button::before {
+    content: "登录";
+    font-size: 11px;
+  }
   .locale-control { padding: 0 7px; }
   .locale-control svg { display: none; }
   #signOutButton { display: none; }
